@@ -22,6 +22,7 @@
   },
   "files": [
     "lib",
+    "docs",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"

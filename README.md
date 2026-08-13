@@ -16,6 +16,10 @@ The current release provides the phase-one text conversation path:
 - Harness credential references instead of secrets in plugin configuration;
 - user and group allowlists enforced by the Lark channel SDK.
 
+The researched Claude Tag feature inventory, extension architecture, and
+dependency-ordered phase-two ledger live in
+[`docs/claude-tag-parity.md`](docs/claude-tag-parity.md).
+
 ## Requirements
 
 - Node.js 22.19 or newer;
