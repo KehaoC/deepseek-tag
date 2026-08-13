@@ -11,8 +11,10 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "verbatimModuleSyntax": true,
+    "jsx": "react-jsx",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
-    "types": ["node", "vitest/globals"]
+    "types": ["node", "react", "react-dom", "vitest/globals"]
   },
   "include": ["src", "tests"]
 }

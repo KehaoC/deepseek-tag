@@ -1,38 +1,15 @@
 /** Deepseek Tag deployment configuration and loader-visible schema. */
 
 import z from '@deepseek-ai/schemastery'
+import {
+  DEFAULT_APP_SECRET_REF,
+  type DeepseekTagSettings,
+  type DirectMessageMode,
+  type LarkTenant,
+} from './contract.js'
 
-/** Feishu China or Lark global service. */
-export type LarkTenant = 'feishu' | 'lark'
-
-/** Who may start a direct-message conversation with the bot. */
-export type DirectMessageMode = 'open' | 'allowlist' | 'disabled'
-
-/** Plugin configuration supplied by the profile composition. */
-export interface Config {
-  /** Whether the bridge should connect. Disabled installs stay inert. */
-  enabled?: boolean
-  /** Feishu/Lark application id (`cli_...`). */
-  appId?: string
-  /** Harness credential reference holding the application secret. */
-  appSecretEnv?: string
-  /** Regional platform whose API the application belongs to. */
-  tenant?: LarkTenant
-  /** Direct-message admission policy. */
-  dmMode?: DirectMessageMode
-  /** Sender ids admitted when `dmMode` is `allowlist`. */
-  dmAllowlist?: string[]
-  /** Group chat ids admitted to use the bot; empty admits every group. */
-  groupAllowlist?: string[]
-  /** Require a direct bot mention for top-level group messages. */
-  requireMention?: boolean
-  /** Agent working directory. Empty uses the Harness process directory. */
-  cwd?: string
-  /** Optional Harness LLM provider override. */
-  provider?: string
-  /** Optional Harness model override. */
-  model?: string
-}
+/** Loader-facing name for the shared settings contract. */
+export type Config = DeepseekTagSettings
 
 /** Configuration after schema defaults have been applied. */
 export interface ResolvedConfig {
@@ -53,7 +30,7 @@ export interface ResolvedConfig {
 export const Config: z<Config> = z.object({
   enabled: z.boolean().default(false),
   appId: z.string().default(''),
-  appSecretEnv: z.string().role('credential-ref').default('DEEPSEEK_TAG_LARK_APP_SECRET'),
+  appSecretEnv: z.string().role('credential-ref').default(DEFAULT_APP_SECRET_REF),
   tenant: z.union(['feishu', 'lark']).default('feishu'),
   dmMode: z.union(['open', 'allowlist', 'disabled']).default('open'),
   dmAllowlist: z.array(z.string()).default([]),

@@ -11,6 +11,7 @@ The current release provides the phase-one text conversation path:
 - one Harness session per DM, group topic, or reply tree;
 - replies returned to the originating Feishu/Lark conversation;
 - sender-aware shared group context;
+- a dedicated **Settings > Deepseek Tag** Web UI with live reconfiguration;
 - Harness credential references instead of secrets in plugin configuration;
 - user and group allowlists enforced by the Lark channel SDK.
 
@@ -25,14 +26,43 @@ The current release provides the phase-one text conversation path:
 ## Install
 
 ```sh
-dsh plugin --profile web add github:KehaoC/deepseek-tag
+dsh plugin --profile web add --workspace-root github:KehaoC/deepseek-tag
 ```
 
 For a git installation, pnpm may ask you to allow the package's `prepare`
 build. Follow the exact `allowBuilds` instruction printed by `dsh`, review the
 source, and repeat the install.
 
-## Configure
+## Configure in the Web UI
+
+1. Start or restart the `web` profile after installation.
+2. Open **Settings > Deepseek Tag**.
+3. Enter the app's `cli_...` App ID and App Secret, and select Feishu or Lark.
+4. Review the DM/group access policy and agent runtime fields.
+5. Enable Deepseek Tag and choose **Save and apply**.
+
+The App Secret is a write-only field. The browser sends a newly entered value
+directly to the Harness credential API; neither the settings document nor any
+later browser response contains it. A saved settings change is applied live.
+Deepseek Tag connects the replacement first and keeps the previous healthy
+connection if the replacement fails.
+
+In Feishu/Lark, send the bot a direct message or add it to a group and mention
+it. A direct-message chat shares one Agent session. A group topic or reply tree
+gets an isolated session.
+
+## App setup
+
+Use a Feishu/Lark PersonalAgent or custom app with bot capability. Configure
+event delivery through WebSocket long connection and enable message receive and
+send permissions. No callback URL, public port, or reverse proxy is required.
+
+Before enabling the bridge, restrict the app's availability and configure the
+DM/group allowlists to match the people and chats that may operate the Agent.
+`dmAllowlist` accepts sender IDs such as `ou_...`; `groupAllowlist` accepts chat
+IDs such as `oc_...`.
+
+## Profile configuration fallback
 
 Store the secret in the environment or in the Harness credential provider
 under `DEEPSEEK_TAG_LARK_APP_SECRET`. Then override the installed row in the
@@ -57,7 +87,9 @@ profile's `cordis.patch.yml`:
 
 `tenant` is `feishu` for the China service and `lark` for the global service.
 An empty provider/model pair uses the Harness Web profile's current default.
-An empty `cwd` uses the Harness process working directory.
+An empty `cwd` uses the Harness process working directory. Profile values are
+the composition base; values saved in **Settings > Deepseek Tag** layer over
+them.
 
 Validate the composed profile before starting it:
 
@@ -66,10 +98,6 @@ dsh --profile web --dump-config
 dsh --profile web
 ```
 
-The next increment will add the dedicated Web UI configuration and pairing
-surface; the host settings and credential boundaries are kept separate so the
-UI never needs to read a stored App Secret.
-
 ## Security defaults
 
 - The installed bundle is disabled until explicitly configured.
@@ -77,6 +105,9 @@ UI never needs to read a stored App Secret.
 - `respondToMentionAll` is disabled.
 - App secrets are resolved through the Harness credential seam or the named
   environment variable and are never logged.
+- The Web UI reports only whether a secret is configured and whether its store
+  is writable; it cannot retrieve the secret.
+- Settings writes are revision-fenced and committed atomically.
 - Lark SDK message deduplication, per-chat serialization, reconnect handling,
   outbound validation, and SSRF defenses remain enabled.
 
