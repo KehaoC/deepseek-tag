@@ -6,6 +6,7 @@ import type { NormalizedMessage } from '@larksuite/channel'
 import { describe, expect, it, vi } from 'vitest'
 import { DeepseekTagBridge, type ChannelLike } from '../src/bridge.js'
 import { resolveConfig } from '../src/config.js'
+import { createSessionId } from '../src/scope.js'
 
 function message(overrides: Partial<NormalizedMessage> = {}): NormalizedMessage {
   return {
@@ -74,12 +75,24 @@ describe('Deepseek Tag bridge', () => {
       dispose: vi.fn(async () => undefined),
     } as unknown as AgentHandle
     const create = vi.fn(async () => handle)
+    const resume = vi.fn(async () => handle)
     const logger = {
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
     }
-    const ctx = { agents: { create }, logger } as unknown as Context
+    const persistedId = createSessionId(
+      'dm:oc_chat',
+      ['feishu', 'cli_test', '', '', ''].join('\0'),
+    )
+    const ctx = {
+      agents: { create, resume },
+      logger,
+      get(service: string) {
+        if (service !== 'sessionPersistence') return undefined
+        return { list: vi.fn(async () => [{ id: persistedId }]) }
+      },
+    } as unknown as Context
     const bridge = new DeepseekTagBridge(ctx, {
       config: resolveConfig({ enabled: true, appId: 'cli_test' }),
       appSecret: 'secret',
@@ -90,7 +103,9 @@ describe('Deepseek Tag bridge', () => {
     await handlers?.message?.(message({ content: 'first' }))
     await handlers?.message?.(message({ messageId: 'om_second', content: 'second' }))
 
-    expect(create).toHaveBeenCalledTimes(1)
+    expect(create).not.toHaveBeenCalled()
+    expect(resume).toHaveBeenCalledOnce()
+    expect(resume).toHaveBeenCalledWith({ resumeSessionId: persistedId })
     expect(prompts.map(prompt => prompt.content[0])).toEqual([
       { type: 'text', text: 'first' },
       { type: 'text', text: 'second' },

@@ -31,11 +31,13 @@ describe('conversation scopes', () => {
     expect(conversationScope(message())).toBe('group:oc_chat:om_root')
   })
 
-  it('mints opaque process-unique Harness ids', () => {
+  it('mints opaque durable ids isolated by runtime configuration', () => {
     const first = createSessionId('group:oc_secret:om_secret')
     const second = createSessionId('group:oc_secret:om_secret')
-    expect(first).toMatch(/^deepseek-tag:lark:[a-f0-9]{24}:[a-f0-9-]{8}$/)
+    const otherRuntime = createSessionId('group:oc_secret:om_secret', 'other-runtime')
+    expect(first).toMatch(/^deepseek-tag:lark:[a-f0-9]{32}$/)
     expect(first).not.toContain('oc_secret')
-    expect(first).not.toBe(second)
+    expect(first).toBe(second)
+    expect(first).not.toBe(otherRuntime)
   })
 })

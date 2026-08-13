@@ -9,6 +9,7 @@ The current release provides the phase-one text conversation path:
 
 - direct messages and `@bot` group messages;
 - one Harness session per DM, group topic, or reply tree;
+- durable session resume across Web runtime restarts when persistence is present;
 - replies returned to the originating Feishu/Lark conversation;
 - sender-aware shared group context;
 - a dedicated **Settings > Deepseek Tag** Web UI with live reconfiguration;
@@ -44,8 +45,8 @@ source, and repeat the install.
 The App Secret is a write-only field. The browser sends a newly entered value
 directly to the Harness credential API; neither the settings document nor any
 later browser response contains it. A saved settings change is applied live.
-Deepseek Tag connects the replacement first and keeps the previous healthy
-connection if the replacement fails.
+Deepseek Tag serializes connection changes and restores the previous healthy
+configuration if a replacement fails.
 
 In Feishu/Lark, send the bot a direct message or add it to a group and mention
 it. A direct-message chat shares one Agent session. A group topic or reply tree

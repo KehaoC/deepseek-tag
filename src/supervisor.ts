@@ -87,24 +87,39 @@ export class BridgeSupervisor {
       && deepEqualJson(this.active.config, config)
       && this.active.appSecret === appSecret) return
 
-    const bridge = (this.options.createBridge
-      ?? ((nextConfig, nextSecret) => new DeepseekTagBridge(this.ctx, {
-        config: nextConfig,
-        appSecret: nextSecret,
-      })))(config, appSecret)
+    const previous = this.active
+    this.active = undefined
+    await previous?.bridge.stop()
+    const bridge = this.createBridge(config, appSecret)
     try {
       await bridge.start()
     } catch (error) {
       await bridge.stop().catch(() => undefined)
+      if (previous !== undefined && !this.disposed && generation === this.generation) {
+        const restored = this.createBridge(previous.config, previous.appSecret)
+        try {
+          await restored.start()
+          this.active = { ...previous, bridge: restored }
+        } catch (restoreError) {
+          await restored.stop().catch(() => undefined)
+          this.ctx.logger.error('[deepseek-tag] failed to restore the previous connection: %s', messageOf(restoreError))
+        }
+      }
       throw error
     }
     if (this.disposed || generation !== this.generation) {
       await bridge.stop()
       return
     }
-    const previous = this.active
     this.active = { bridge, config, appSecret }
-    await previous?.bridge.stop()
+  }
+
+  private createBridge(config: ResolvedConfig, appSecret: string): RunningBridge {
+    return (this.options.createBridge
+      ?? ((nextConfig, nextSecret) => new DeepseekTagBridge(this.ctx, {
+        config: nextConfig,
+        appSecret: nextSecret,
+      })))(config, appSecret)
   }
 }
 

@@ -4,6 +4,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { AgentHandle, AgentOptions } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import type {} from '@deepseek-ai/dsh-session-persistence'
 import {
   createLarkChannel,
   type LarkChannel,
@@ -83,6 +84,7 @@ export class DeepseekTagBridge {
   private readonly channel: ChannelLike
   private readonly conversations = new Map<string, Promise<ConversationSession>>()
   private readonly active = new Set<Promise<void>>()
+  private readonly persistedSessionIds = new Set<string>()
   private unsubscribe: (() => void) | undefined
   private stopped = false
 
@@ -93,6 +95,13 @@ export class DeepseekTagBridge {
   /** Subscribe before connecting so no first message is missed. */
   async start(): Promise<void> {
     if (this.unsubscribe !== undefined) return
+    const persistence = this.ctx.get('sessionPersistence')
+    if (persistence !== undefined) {
+      const headers = await persistence.list()
+      for (const header of headers) {
+        if (header.id.startsWith('deepseek-tag:lark:')) this.persistedSessionIds.add(header.id)
+      }
+    }
     this.unsubscribe = this.channel.on({
       message: message => this.track(this.handleMessage(message)),
       error: error => {
@@ -192,11 +201,17 @@ export class DeepseekTagBridge {
       ...(config.provider === '' ? {} : { provider: config.provider }),
       ...(config.model === '' ? {} : { model: config.model }),
     }
-    const handle = await this.ctx.agents.create({
-      sessionId: SessionId(createSessionId(scope)),
-      meta: { cwd: config.cwd === '' ? process.cwd() : config.cwd },
-      ...(Object.keys(agentOptions).length === 0 ? {} : { agentOptions }),
-    })
+    const runtimeKey = [config.tenant, config.appId, config.cwd, config.provider, config.model].join('\0')
+    const sessionId = SessionId(createSessionId(scope, runtimeKey))
+    const options = Object.keys(agentOptions).length === 0 ? {} : { agentOptions }
+    const handle = this.persistedSessionIds.has(sessionId)
+      ? await this.ctx.agents.resume({ resumeSessionId: sessionId, ...options })
+      : await this.ctx.agents.create({
+        sessionId,
+        meta: { cwd: config.cwd === '' ? process.cwd() : config.cwd },
+        ...options,
+      })
+    this.persistedSessionIds.add(sessionId)
     return { handle }
   }
 

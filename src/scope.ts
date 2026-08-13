@@ -1,6 +1,6 @@
 /** Conversation-to-agent scope mapping. */
 
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import type { NormalizedMessage } from '@larksuite/channel'
 
 /**
@@ -13,8 +13,16 @@ export function conversationScope(message: NormalizedMessage): string {
   return `group:${message.chatId}:${thread}`
 }
 
-/** Mint a process-unique Harness session id without exposing Lark identifiers. */
-export function createSessionId(scope: string): string {
-  const digest = createHash('sha256').update(scope).digest('hex').slice(0, 24)
-  return `deepseek-tag:lark:${digest}:${randomUUID().slice(0, 8)}`
+/**
+ * Derive an opaque durable identity. The runtime key isolates the same Lark
+ * thread when its app, workspace, provider, or model changes.
+ */
+export function createSessionId(scope: string, runtimeKey = ''): string {
+  const digest = createHash('sha256')
+    .update(runtimeKey)
+    .update('\0')
+    .update(scope)
+    .digest('hex')
+    .slice(0, 32)
+  return `deepseek-tag:lark:${digest}`
 }

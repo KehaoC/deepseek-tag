@@ -19,7 +19,10 @@ describe('bridge supervisor', () => {
       createBridge: () => {
         const bridge = {
           start: vi.fn(async () => {
-            if (failNext) throw new Error('cannot connect')
+            if (failNext) {
+              failNext = false
+              throw new Error('cannot connect')
+            }
           }),
           stop: vi.fn(async () => undefined),
         }
@@ -32,15 +35,16 @@ describe('bridge supervisor', () => {
     failNext = true
     await expect(supervisor.configure({ enabled: true, appId: 'cli_test', tenant: 'lark' }))
       .rejects.toThrow('cannot connect')
-    expect(bridges[0]?.stop).not.toHaveBeenCalled()
+    expect(bridges[0]?.stop).toHaveBeenCalledOnce()
+    expect(bridges[2]?.start).toHaveBeenCalledOnce()
 
     failNext = false
     secret = 'rotated-secret'
     await supervisor.configure({ enabled: true, appId: 'cli_test' })
-    expect(bridges[0]?.stop).toHaveBeenCalledOnce()
-    expect(bridges[2]?.start).toHaveBeenCalledOnce()
+    expect(bridges[2]?.stop).toHaveBeenCalledOnce()
+    expect(bridges[3]?.start).toHaveBeenCalledOnce()
 
     await supervisor.stop()
-    expect(bridges[2]?.stop).toHaveBeenCalledOnce()
+    expect(bridges[3]?.stop).toHaveBeenCalledOnce()
   })
 })
