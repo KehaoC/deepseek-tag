@@ -1,0 +1,7 @@
+# Deepseek Tag bundle. The plugin is installed inert and is configured in the
+# profile layer or, once available, through its Web UI settings section.
+- insert:
+    - id: deepseek-tag
+      name: deepseek-tag
+      config:
+        enabled: false
