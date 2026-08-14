@@ -6,6 +6,30 @@ export type LarkTenant = 'feishu' | 'lark'
 /** Who may start a direct-message conversation with the bot. */
 export type DirectMessageMode = 'open' | 'allowlist' | 'disabled'
 
+export type LarkSetupKind = 'create' | 'authorize'
+export type LarkSetupStatus = 'waiting' | 'ready' | 'completed' | 'failed'
+
+/** Secret-free setup state shared with the loopback browser. */
+export interface LarkSetupView {
+  id: string
+  kind: LarkSetupKind
+  status: LarkSetupStatus
+  url?: string
+  expiresAt?: number
+  appId?: string
+  tenant?: LarkTenant
+  error?: string
+}
+
+/** Verifiable app-identity grant status shared with the loopback browser. */
+export interface LarkPermissionView {
+  status: 'ready' | 'missing' | 'unconfigured' | 'unknown'
+  granted: string[]
+  missing: string[]
+  capabilities: Array<'messages' | 'groupHistory'>
+  error?: string
+}
+
 /** Plugin configuration supplied by composition and the settings document. */
 export interface DeepseekTagSettings {
   /** Whether the bridge should connect. Disabled installs stay inert. */

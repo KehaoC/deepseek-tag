@@ -11,7 +11,35 @@ import {
   DEFAULT_APP_SECRET_REF,
   WEB_SETTINGS_PATH,
   type DeepseekTagSettings,
+  type LarkPermissionView,
+  type LarkSetupView,
 } from '../contract.js'
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+const SETUP_SESSION_KEY = 'deepseek-tag.setup-session'
+
+function rememberedSetupId(): string | undefined {
+  try {
+    return typeof sessionStorage === 'undefined'
+      ? undefined
+      : sessionStorage.getItem(SETUP_SESSION_KEY) ?? undefined
+  } catch (_storageUnavailable) {
+    return undefined
+  }
+}
+
+function rememberSetupId(id: string | undefined): void {
+  try {
+    if (typeof sessionStorage === 'undefined') return
+    if (id === undefined) sessionStorage.removeItem(SETUP_SESSION_KEY)
+    else sessionStorage.setItem(SETUP_SESSION_KEY, id)
+  } catch (_storageUnavailable) {
+    // Setup still works in-memory when browser storage is unavailable.
+  }
+}
 
 /** Fully materialized form value supplied by the host schema defaults. */
 export interface TagForm {
@@ -37,6 +65,32 @@ export interface CredentialState {
   loading: boolean
 }
 
+/** Host-side registration progress with browser request state. */
+export interface SetupState {
+  loading: boolean
+  value?: LarkSetupView
+  error?: string
+}
+
+/** Permission preflight state; no credential values cross this boundary. */
+export interface PermissionState extends LarkPermissionView {
+  loading: boolean
+}
+
+/** One model route from Harness's live provider catalog. */
+export interface ModelOption {
+  provider: string
+  model: string
+  providerName: string
+  modelName: string
+}
+
+export interface ModelCatalogState {
+  loading: boolean
+  options: ModelOption[]
+  error?: string
+}
+
 /** Result of a staged form save. */
 export type SaveResult =
   | { ok: true }
@@ -51,6 +105,9 @@ interface WebSettingsView {
 interface WebSettingsResponse {
   ok: boolean
   value?: WebSettingsView
+  setup?: LarkSetupView
+  permissions?: LarkPermissionView
+  error?: string
 }
 
 /** Plugin-owned settings scope used because Harness does not expose third-party namespaces. */
@@ -79,11 +136,11 @@ export class WebTagSettingsScope implements SettingsScope<DeepseekTagSettings> {
   }
 
   async load(): Promise<void> {
-    await this.request({ operation: 'describe' })
+    await this.requestSettings({ operation: 'describe' })
   }
 
   async replace(value: DeepseekTagSettings, expectedRevision?: number): Promise<boolean> {
-    return this.request({ operation: 'replace', value, expectedRevision })
+    return this.requestSettings({ operation: 'replace', value, expectedRevision })
   }
 
   async set(field: string, value: unknown): Promise<void> {
@@ -96,30 +153,67 @@ export class WebTagSettingsScope implements SettingsScope<DeepseekTagSettings> {
     await this.replace(next)
   }
 
-  private async request(body: object): Promise<boolean> {
+  async setupCreate(): Promise<LarkSetupView> {
+    return this.requireSetup(await this.request({ operation: 'setup-create' }))
+  }
+
+  async setupAuthorize(): Promise<LarkSetupView> {
+    return this.requireSetup(await this.request({ operation: 'setup-authorize' }))
+  }
+
+  async setupStatus(id: string): Promise<LarkSetupView> {
+    return this.requireSetup(await this.request({ operation: 'setup-status', id }))
+  }
+
+  async setupFinish(id: string): Promise<void> {
+    await this.request({ operation: 'setup-finish', id })
+  }
+
+  async setupCancel(id: string): Promise<void> {
+    await this.request({ operation: 'setup-cancel', id })
+  }
+
+  async checkPermissions(): Promise<LarkPermissionView> {
+    const response = await this.request({ operation: 'permissions-check' })
+    if (response.permissions === undefined) throw new Error('permission status is unavailable')
+    return response.permissions
+  }
+
+  private async requestSettings(body: object): Promise<boolean> {
     try {
-      const response = await fetch(WEB_SETTINGS_PATH, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      if (!response.ok) return this.rejectInitialLoad()
-      const payload = await response.json() as WebSettingsResponse
-      if (!payload.ok || payload.value === undefined) return this.rejectInitialLoad()
-      const view = payload.value
-      this.store.set({
-        status: 'ready',
-        value: view.value,
-        base: undefined,
-        user: undefined,
-        revision: view.revision,
-        writable: view.writable,
-        mode: 'host',
-      })
+      await this.request(body)
       return true
     } catch (_transportFailure) {
       return this.rejectInitialLoad()
     }
+  }
+
+  private async request(body: object): Promise<WebSettingsResponse> {
+    const response = await fetch(WEB_SETTINGS_PATH, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const payload = await response.json() as WebSettingsResponse
+    if (!response.ok || !payload.ok || payload.value === undefined) {
+      throw new Error(payload.error ?? `request failed (${String(response.status)})`)
+    }
+    const view = payload.value
+    this.store.set({
+      status: 'ready',
+      value: view.value,
+      base: undefined,
+      user: undefined,
+      revision: view.revision,
+      writable: view.writable,
+      mode: 'host',
+    })
+    return payload
+  }
+
+  private requireSetup(response: WebSettingsResponse): LarkSetupView {
+    if (response.setup === undefined) throw new Error('setup session is unavailable')
+    return response.setup
   }
 
   private rejectInitialLoad(): false {
@@ -158,10 +252,13 @@ export function validateForm(form: TagForm): 'appId' | 'dmAllowlist' | 'modelRou
 /** Own credential inspection and one atomic settings mutation. */
 export class TagSettingsController {
   readonly credential: SnapshotStore<CredentialState>
+  readonly setup: SnapshotStore<SetupState>
+  readonly permissions: SnapshotStore<PermissionState>
+  readonly models: SnapshotStore<ModelCatalogState>
 
   constructor(
     private readonly scope: WebTagSettingsScope,
-    private readonly api: Pick<IApiClient, 'credentials'>,
+    private readonly api: Pick<IApiClient, 'credentials' | 'host' | 'llm'>,
   ) {
     this.credential = createSnapshotStore<CredentialState>({
       ref: DEFAULT_APP_SECRET_REF,
@@ -169,11 +266,148 @@ export class TagSettingsController {
       writable: true,
       loading: true,
     })
+    this.setup = createSnapshotStore<SetupState>({ loading: false })
+    this.permissions = createSnapshotStore<PermissionState>({
+      loading: false,
+      status: 'unconfigured',
+      granted: [],
+      missing: [],
+      capabilities: [],
+    })
+    this.models = createSnapshotStore<ModelCatalogState>({ loading: true, options: [] })
     scope.subscribe(() => {
       const ref = formOf(scope.getSnapshot().value).appSecretEnv
       if (ref !== this.credential.getSnapshot().ref) void this.refreshCredential(ref)
     })
     void this.refreshCredential()
+    void this.refreshModels()
+    void this.restoreSetup()
+  }
+
+  /** Start one-click app creation and return the platform URL to open. */
+  async createApp(): Promise<LarkSetupView | undefined> {
+    rememberSetupId(undefined)
+    this.setup.set({ loading: true })
+    try {
+      const value = await this.scope.setupCreate()
+      this.setup.set({ loading: false, value })
+      rememberSetupId(value.id)
+      return value
+    } catch (error) {
+      this.setup.set({ loading: false, error: messageOf(error) })
+      return undefined
+    }
+  }
+
+  /** Request missing scopes/events for the currently configured app. */
+  async authorizeApp(): Promise<LarkSetupView | undefined> {
+    rememberSetupId(undefined)
+    this.setup.set({ loading: true })
+    try {
+      const value = await this.scope.setupAuthorize()
+      this.setup.set({ loading: false, value })
+      rememberSetupId(value.id)
+      return value
+    } catch (error) {
+      this.setup.set({ loading: false, error: messageOf(error) })
+      return undefined
+    }
+  }
+
+  /** Poll the host-owned registration without exposing its credentials. */
+  async pollSetup(): Promise<LarkSetupView | undefined> {
+    const current = this.setup.getSnapshot().value
+    if (current === undefined) return undefined
+    try {
+      const value = await this.scope.setupStatus(current.id)
+      this.setup.set({ loading: false, value })
+      if (value.kind === 'create' && value.status === 'ready') {
+        await this.scope.setupFinish(value.id)
+        await this.refreshCredential()
+        await this.refreshPermissions()
+        const { url: _url, ...rest } = value
+        const completed: LarkSetupView = { ...rest, status: 'completed' }
+        this.setup.set({ loading: false, value: completed })
+        rememberSetupId(undefined)
+        return completed
+      }
+      if (value.kind === 'authorize' && value.status === 'ready') {
+        await this.refreshPermissions()
+        rememberSetupId(undefined)
+      } else if (value.status === 'failed' || value.status === 'completed') {
+        rememberSetupId(undefined)
+      }
+      return value
+    } catch (error) {
+      this.setup.set({ loading: false, value: current, error: messageOf(error) })
+      return undefined
+    }
+  }
+
+  async cancelSetup(): Promise<void> {
+    const current = this.setup.getSnapshot().value
+    if (current !== undefined) await this.scope.setupCancel(current.id).catch(() => undefined)
+    rememberSetupId(undefined)
+    this.setup.set({ loading: false })
+  }
+
+  private async restoreSetup(): Promise<void> {
+    const id = rememberedSetupId()
+    if (id === undefined) return
+    this.setup.set({ loading: true })
+    try {
+      const value = await this.scope.setupStatus(id)
+      this.setup.set({ loading: false, value })
+      if (value.status === 'ready') await this.pollSetup()
+      else if (value.status !== 'waiting') rememberSetupId(undefined)
+    } catch (_expiredSession) {
+      rememberSetupId(undefined)
+      this.setup.set({ loading: false })
+    }
+  }
+
+  /** Refresh app grants before the admin enables the bridge. */
+  async refreshPermissions(): Promise<void> {
+    const previous = this.permissions.getSnapshot()
+    const { error: _error, ...rest } = previous
+    this.permissions.set({ ...rest, loading: true })
+    try {
+      const value = await this.scope.checkPermissions()
+      this.permissions.set({ ...value, loading: false })
+    } catch (error) {
+      this.permissions.set({
+        loading: false,
+        status: 'unknown',
+        granted: [],
+        missing: [],
+        capabilities: [],
+        error: messageOf(error),
+      })
+    }
+  }
+
+  /** Load the models the connected Harness runtime can actually route. */
+  async refreshModels(): Promise<void> {
+    this.models.set({ loading: true, options: [] })
+    try {
+      const response = await this.api.llm.models({})
+      if (!response.result.ok) throw new Error(response.result.error.message)
+      const options = response.result.value.groups.flatMap(group => group.models.map(model => ({
+        provider: group.id,
+        model: model.id,
+        providerName: group.name,
+        modelName: model.name,
+      })))
+      this.models.set({ loading: false, options })
+    } catch (error) {
+      this.models.set({ loading: false, options: [], error: messageOf(error) })
+    }
+  }
+
+  async pickDirectory(): Promise<string | null> {
+    const response = await this.api.host.pickDirectory({})
+    if (!response.result.ok) throw new Error(response.result.error.message)
+    return response.result.value.path
   }
 
   /** Refresh configured/writable facts without ever reading the value. */
@@ -219,8 +453,14 @@ export class TagSettingsController {
       return { ok: false, reason: 'credential' }
     }
 
+    const snapshot = this.scope.getSnapshot()
+    const previous = formOf(snapshot.value)
+    const appChanged = secret.length > 0
+      || form.appId.trim() !== previous.appId
+      || form.tenant !== previous.tenant
     const section: TagForm = {
       ...form,
+      enabled: appChanged ? false : form.enabled,
       appId: form.appId.trim(),
       cwd: form.cwd.trim(),
       provider: form.provider.trim(),
@@ -229,7 +469,6 @@ export class TagSettingsController {
       groupAllowlist: [...form.groupAllowlist],
       workspaceMemoryGroups: [...form.workspaceMemoryGroups],
     }
-    const snapshot = this.scope.getSnapshot()
     try {
       const saved = await this.scope.replace(section, snapshot.revision)
       return saved ? { ok: true } : { ok: false, reason: 'settings' }

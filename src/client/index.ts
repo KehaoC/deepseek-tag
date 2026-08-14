@@ -30,12 +30,17 @@ export function apply(ctx: ClientContext): void {
     })
     const offSettings = ctx.remote.$on('settings/document-updated', (namespace) => {
       if (namespace === SETTINGS_NAMESPACE) void scope.load()
+      void controller.refreshModels()
+    })
+    const offModels = ctx.remote.$on('llm/adapters-updated', () => {
+      void controller.refreshModels()
     })
     const offReset = ctx.on('connection/reset', () => {
       void controller.refreshCredential()
+      void controller.refreshModels()
       void scope.load()
     })
-    return () => { offCredential(); offSettings(); offReset() }
+    return () => { offCredential(); offSettings(); offModels(); offReset() }
   }, 'deepseek-tag: credential status')
 
   ctx.slots.inject('settings.section', () => ctx.slots.register({
@@ -45,8 +50,20 @@ export function apply(ctx: ClientContext): void {
     label: () => t('nav'),
     locale: LOCALE_NAMESPACE,
     inject: (): TagSettingsInjected => ({
-      hooks: { tagSettings: scope, credential: controller.credential },
+      hooks: {
+        tagSettings: scope,
+        credential: controller.credential,
+        setup: controller.setup,
+        permissions: controller.permissions,
+        models: controller.models,
+      },
       save: (form, secret) => controller.save(form, secret),
+      createApp: () => controller.createApp(),
+      authorizeApp: () => controller.authorizeApp(),
+      pollSetup: () => controller.pollSetup(),
+      cancelSetup: () => controller.cancelSetup(),
+      refreshPermissions: () => controller.refreshPermissions(),
+      pickDirectory: () => controller.pickDirectory(),
     }),
   }, TagSettingsSection))
 }

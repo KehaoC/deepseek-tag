@@ -22,6 +22,7 @@ flowchart LR
   O --> T
 
   UI["Harness Web settings"] --> API["Loopback plugin endpoint"]
+  API --> PAIR["Short-lived Lark registration / authorization"]
   API --> CFG["Settings namespace"]
   UI --> SEC["Write-only credentials"]
   CFG --> SUP["Connection supervisor"]
@@ -69,6 +70,9 @@ the active Web profile composes.
 | Installable Harness bundle | Done | `dsh.bundle.patch`, disabled-by-default Cordis row, self-contained `prepare` build |
 | Dedicated Web configuration | Done | `dsh.client` browser plugin under **Settings > Deepseek Tag** |
 | Secret-safe setup | Done | App Secret is write-only through Harness credentials; UI reads configured/writable facts only |
+| Guided app setup | Done | One-click official PersonalAgent creation with prefilled bot event/scopes, resumable polling, cancellation, expiry, and manual fallback |
+| Permission preflight | Done | Actual tenant grants are checked before launch; missing message/history grants open additive official authorization |
+| Runtime choices | Done | Model selection comes from the live Harness catalog and working directories use the native chooser; manual model routing appears only when discovery fails |
 | Local and cloud-hosted Web runtime | Done | Outbound WebSocket needs no inbound public webhook; Agent execution stays in the composed Harness runtime |
 | DM conversation | Done | One durable Agent session per DM chat |
 | Group conversation | Done | Direct mention required by default; one session per topic/reply tree, including raw-message recovery for omitted topic ids |
@@ -86,8 +90,31 @@ the active Web profile composes.
 | Live app credential validation | Requires deployment check | Needs a real tenant App ID/App Secret; automated tests and a real Harness Web load cannot prove tenant permissions |
 
 Phase 1 intentionally returns a final text reply. Files are disclosed as not
-yet consumed instead of being silently ignored. QR onboarding, connection
-health, progress cards, commands, and attachments begin the parity work below.
+yet consumed instead of being silently ignored. Guided onboarding and grant
+preflight are complete; connection health, progress cards, commands, and
+attachments continue in the parity work below.
+
+### Guided setup parity
+
+- **Observed Claude behavior:** the admin page opens on setup until pairing is
+  complete, keeps all steps on one resumable page, pairs the chat workspace,
+  asks where the Agent may run, and launches only after the prerequisite steps.
+- **Lark equivalent:** `registerApp` opens Feishu/Lark's official PersonalAgent
+  create page with the app name, bot template, `im.message.receive_v1`,
+  `im:message`, and `im:message.group_msg` prefilled. The same device flow with
+  `appId + addons` performs additive authorization for an existing app.
+- **Dependencies:** loopback Harness Web, writable Harness settings and
+  credentials, access to the Feishu/Lark accounts domain, and an admin allowed
+  to create or update the tenant app. GitHub and email-account setup are
+  intentionally outside this stage.
+- **Security:** setup sessions use random host-owned identifiers, expire or are
+  cancelled with the plugin lifecycle, never return App Secret values, disable
+  an existing bridge before credential rotation, and expose routes only to
+  same-origin loopback requests.
+- **Acceptance:** an unconfigured admin can open the official create page with
+  one click and return to an automatically paired app; a manually configured
+  app shows actual grant status and opens one-click incremental authorization;
+  enablement stays unavailable until pairing and required grants pass.
 
 ### Conversation history parity
 
@@ -115,8 +142,8 @@ commit with focused tests and migration-safe settings.
 
 | Order | Claude Tag behavior to match | Deepseek Tag implementation target | Main extension boundary |
 | ---: | --- | --- | --- |
-| 1 | Guided workspace pairing/setup | QR PersonalAgent registration in Web UI, manual-credential fallback, cancellation and expiry handling | Control plane + `registerApp` |
-| 2 | Setup/test and troubleshooting feedback | Live connection state, bot identity, last transport error, permission diagnostics, send/receive self-test | Transport status projection |
+| 1 | Guided workspace pairing/setup | **Done:** one-page PersonalAgent creation, host-only credential handoff, manual fallback, access-scope choices, Harness model/directory selectors, cancellation and expiry | Control plane + `registerApp` |
+| 2 | Setup/test and troubleshooting feedback | **Permission preflight done.** Live connection state, bot identity, last transport error, and send/receive self-test remain | Transport status projection |
 | 3 | Immediate acknowledgment and visible work checklist | Reply with a Lark card, project Agent todo/step state, update in place, finish with final status | Agent event projection |
 | 4 | Steering a task while it is running | Accept thread follow-ups during a run, distinguish steering from queued next-turn messages, expose stop/restart | Conversation coordinator |
 | 5 | Exact user commands | Implement deterministic `!restart`, `!mute`, `!unmute`, feedback, routine listing, and thread handoff equivalents before normal prompting | Command router |

@@ -20,6 +20,8 @@ The current release provides the phase-one text conversation path:
 - replies returned to the originating Feishu/Lark conversation;
 - sender-aware shared group context;
 - a dedicated **Settings > Deepseek Tag** Web UI with live reconfiguration;
+- guided one-click app creation and incremental permission authorization;
+- a live Harness model picker and native working-directory chooser;
 - Harness credential references instead of secrets in plugin configuration;
 - user and group allowlists enforced by the Lark channel SDK.
 
@@ -32,9 +34,8 @@ dependency-ordered phase-two ledger live in
 - Node.js 22.19 or newer;
 - a working DeepSeek Harness Web profile;
 - a Harness session-persistence backend (included by the standard Web profile);
-- a Feishu/Lark custom app with bot capability, long-connection event delivery,
-  `im:message`, `im:message.group_msg`, and bot send permissions;
-- the app's App ID and App Secret.
+- permission to create or update a Feishu/Lark custom app. Existing App ID and
+  App Secret credentials remain supported as a manual fallback.
 
 ## Install
 
@@ -50,13 +51,19 @@ source, and repeat the install.
 
 1. Start or restart the `web` profile after installation.
 2. Open **Settings > Deepseek Tag**.
-3. Enter the app's `cli_...` App ID and App Secret, and select Feishu or Lark.
-4. Review the DM/group access policy, workspace-memory groups, and Agent runtime fields.
-5. Enable Deepseek Tag and choose **Save and apply**.
+3. Choose **Create Lark app**. The official Feishu/Lark page opens with the bot
+   capability, long-connection event, and required permissions prefilled. Confirm
+   there; App ID and App Secret are saved automatically on this page.
+4. Review the permission preflight. If an existing app is missing a grant,
+   choose **Grant required access** to open the official incremental authorization flow.
+5. Select the group/DM scope, one of the models discovered from Harness, and a
+   working directory. Then enable Deepseek Tag and choose **Save and apply**.
 
-The App Secret is a write-only field. The browser sends a newly entered value
-directly to the Harness credential API; neither the settings document nor any
-later browser response contains it. A saved settings change is applied live.
+The App Secret is write-only. In one-click setup, it moves directly from the
+short-lived host registration session into Harness credentials and never
+crosses a browser response. In manual setup, the browser sends a newly entered
+value directly to the Harness credential API. Neither path places a secret in
+the settings document or any later read response. A saved settings change is applied live.
 Deepseek Tag serializes connection changes and restores the previous healthy
 configuration if a replacement fails.
 
@@ -89,7 +96,8 @@ forget a fact.
 
 ## App setup
 
-Use a Feishu/Lark PersonalAgent or custom app with bot capability. Configure
+The guided Settings flow creates a Feishu/Lark PersonalAgent with bot capability.
+For manual setup, use a PersonalAgent or custom app with bot capability. Configure
 event delivery through WebSocket long connection and enable `im:message`
 (read/send messages) plus `im:message.group_msg` (read every message in
 groups). A read-only deployment may use `im:message:readonly` together with a
