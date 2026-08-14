@@ -79,12 +79,12 @@ export function TagSettingsSection(props: TagSettingsProps) {
       </div>
 
       <div className="dst-status">
-        <span className="dst-badge">
+        <span className={`dst-badge${credential.configured ? ' dst-badge--ok' : ''}`}>
           {credential.configured ? t('statusSecretSet') : t('statusSecretUnset')}
         </span>
       </div>
 
-      <div className="dst-card">
+      <div className="dst-card dst-card--primary">
         <label className="dst-toggle">
           <input
             type="checkbox"
