@@ -28,6 +28,7 @@ export interface ChannelLike {
   connect(): Promise<void>
   disconnect(): Promise<void>
   reply(message: NormalizedMessage, input: { markdown: string }): Promise<unknown>
+  fetchRawMessage?(messageId: string): Promise<unknown[]>
 }
 
 /** Bridge construction seams. */
@@ -54,6 +55,20 @@ export function admitsConversationMessage(
   sessionExists: boolean,
 ): boolean {
   return message.chatType === 'p2p' || !requireMention || message.mentionedBot || sessionExists
+}
+
+/** Backfill the topic id that Feishu sometimes omits from root-message events. */
+export async function resolveTopicThread(
+  message: NormalizedMessage,
+  fetchRawMessage: ((messageId: string) => Promise<unknown[]>) | undefined,
+): Promise<NormalizedMessage> {
+  if (message.chatType !== 'group'
+    || message.chatMode !== 'topic'
+    || message.threadId !== undefined
+    || fetchRawMessage === undefined) return message
+  const [raw] = await fetchRawMessage(message.messageId)
+  const threadId = (raw as { thread_id?: unknown } | undefined)?.thread_id
+  return typeof threadId === 'string' && threadId.length > 0 ? { ...message, threadId } : message
 }
 
 /** Create the production Lark WebSocket channel. */
@@ -168,8 +183,17 @@ export class DeepseekTagBridge {
     return task
   }
 
-  private async handleMessage(message: NormalizedMessage): Promise<void> {
+  private async handleMessage(input: NormalizedMessage): Promise<void> {
     if (this.stopped) return
+    let message = input
+    try {
+      message = await resolveTopicThread(input, this.channel.fetchRawMessage?.bind(this.channel))
+      if (message.threadId !== input.threadId) {
+        this.ctx.logger.info('[deepseek-tag] recovered topic thread id for message %s', input.messageId)
+      }
+    } catch (error) {
+      this.ctx.logger.warn('[deepseek-tag] topic thread lookup failed for %s: %s', input.messageId, messageOf(error))
+    }
     if (!this.admits(message)) return
     const content = this.promptFor(message)
     if (content === undefined) {

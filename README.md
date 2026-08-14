@@ -9,6 +9,7 @@ The current release provides the phase-one text conversation path:
 
 - direct messages and `@bot` group messages;
 - one Harness session per DM, group topic, or reply tree;
+- raw-message topic-id recovery when Feishu omits `thread_id` from a root event;
 - durable session resume across turns and Web runtime restarts;
 - one live Agent/sandbox activation per request, released after the turn becomes idle;
 - place-scoped durable memory with DM isolation, private-group memory, and

@@ -71,7 +71,7 @@ the active Web profile composes.
 | Secret-safe setup | Done | App Secret is write-only through Harness credentials; UI reads configured/writable facts only |
 | Local and cloud-hosted Web runtime | Done | Outbound WebSocket needs no inbound public webhook; Agent execution stays in the composed Harness runtime |
 | DM conversation | Done | One durable Agent session per DM chat |
-| Group conversation | Done | Direct mention required by default; one session per topic/reply tree |
+| Group conversation | Done | Direct mention required by default; one session per topic/reply tree, including raw-message recovery for omitted topic ids |
 | Thread continuation | Done | Once a topic/reply tree owns a durable session, admitted members can continue without mentioning the bot again |
 | Multi-turn context | Done | Every turn resumes one durable thread session while its live Agent is released after idle |
 | Runtime lifecycle | Done | One Agent/sandbox activation per request; `AgentHandle.dispose()` releases the live scoped world while session persistence retains the thread |

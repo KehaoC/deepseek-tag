@@ -4,7 +4,12 @@ import { createAssistantMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { NormalizedMessage } from '@larksuite/channel'
 import { describe, expect, it, vi } from 'vitest'
-import { admitsConversationMessage, DeepseekTagBridge, type ChannelLike } from '../src/bridge.js'
+import {
+  admitsConversationMessage,
+  DeepseekTagBridge,
+  resolveTopicThread,
+  type ChannelLike,
+} from '../src/bridge.js'
 import { resolveConfig } from '../src/config.js'
 import { createSessionId } from '../src/scope.js'
 
@@ -33,6 +38,14 @@ describe('Deepseek Tag bridge', () => {
     expect(admitsConversationMessage({ ...group, mentionedBot: true }, true, false)).toBe(true)
     expect(admitsConversationMessage(group, false, false)).toBe(true)
     expect(admitsConversationMessage(message(), true, false)).toBe(true)
+  })
+
+  it('backfills a missing topic id from the raw Lark message', async () => {
+    const topicRoot = message({ chatType: 'group', chatMode: 'topic' })
+    const resolved = await resolveTopicThread(topicRoot, vi.fn(async () => [{ thread_id: 'omt_topic' }]))
+    expect(resolved.threadId).toBe('omt_topic')
+    const regularGroup = { ...topicRoot, chatMode: 'group' as const }
+    expect(await resolveTopicThread(regularGroup, vi.fn())).toBe(regularGroup)
   })
 
   it('releases each live runtime and resumes the durable conversation', async () => {
