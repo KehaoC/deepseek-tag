@@ -22,6 +22,7 @@ export interface TagForm {
   dmMode: 'open' | 'allowlist' | 'disabled'
   dmAllowlist: string[]
   groupAllowlist: string[]
+  workspaceMemoryGroups: string[]
   requireMention: boolean
   cwd: string
   provider: string
@@ -138,6 +139,7 @@ export function formOf(value: DeepseekTagSettings | undefined): TagForm {
     dmMode: value?.dmMode ?? 'open',
     dmAllowlist: [...(value?.dmAllowlist ?? [])],
     groupAllowlist: [...(value?.groupAllowlist ?? [])],
+    workspaceMemoryGroups: [...(value?.workspaceMemoryGroups ?? [])],
     requireMention: value?.requireMention ?? true,
     cwd: value?.cwd ?? '',
     provider: value?.provider ?? '',
@@ -225,6 +227,7 @@ export class TagSettingsController {
       model: form.model.trim(),
       dmAllowlist: [...form.dmAllowlist],
       groupAllowlist: [...form.groupAllowlist],
+      workspaceMemoryGroups: [...form.workspaceMemoryGroups],
     }
     const snapshot = this.scope.getSnapshot()
     try {

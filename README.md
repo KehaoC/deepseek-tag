@@ -9,7 +9,10 @@ The current release provides the phase-one text conversation path:
 
 - direct messages and `@bot` group messages;
 - one Harness session per DM, group topic, or reply tree;
-- durable session resume across Web runtime restarts when persistence is present;
+- durable session resume across turns and Web runtime restarts;
+- one live Agent/sandbox activation per request, released after the turn becomes idle;
+- place-scoped durable memory with DM isolation, private-group memory, and
+  explicitly enabled workspace-sharing groups;
 - replies returned to the originating Feishu/Lark conversation;
 - sender-aware shared group context;
 - a dedicated **Settings > Deepseek Tag** Web UI with live reconfiguration;
@@ -43,7 +46,7 @@ source, and repeat the install.
 1. Start or restart the `web` profile after installation.
 2. Open **Settings > Deepseek Tag**.
 3. Enter the app's `cli_...` App ID and App Secret, and select Feishu or Lark.
-4. Review the DM/group access policy and agent runtime fields.
+4. Review the DM/group access policy, workspace-memory groups, and Agent runtime fields.
 5. Enable Deepseek Tag and choose **Save and apply**.
 
 The App Secret is a write-only field. The browser sends a newly entered value
@@ -60,7 +63,16 @@ a non-loopback host.
 
 In Feishu/Lark, send the bot a direct message or add it to a group and mention
 it. A direct-message chat shares one Agent session. A group topic or reply tree
-gets an isolated session.
+gets an isolated session. Replies rebuild the same durable session after its
+previous live runtime has been released.
+
+Memory follows the same place hierarchy. A DM reads and writes only its own
+memory. An ordinary group reads workspace memory but writes only its own group
+memory. Because Lark does not expose Slack's public/private classification,
+groups remain private unless their `chat_id` is explicitly listed under
+**Workspace-sharing groups**. Those groups read and write the app workspace's
+shared memory. In conversation, ask the Agent to remember, list, update, or
+forget a fact.
 
 ## App setup
 
@@ -90,6 +102,7 @@ profile's `cordis.patch.yml`:
       dmMode: open
       dmAllowlist: []
       groupAllowlist: []
+      workspaceMemoryGroups: []
       requireMention: true
       cwd: ''
       provider: ''
@@ -119,8 +132,18 @@ dsh --profile web
 - The Web UI reports only whether a secret is configured and whether its store
   is writable; it cannot retrieve the secret.
 - Settings writes are revision-fenced and committed atomically.
+- Transport ids are hashed before place-memory keys reach durable storage.
+- Private groups cannot modify workspace memory; DMs cannot read group or
+  workspace memory.
 - Lark SDK message deduplication, per-chat serialization, reconnect handling,
   outbound validation, and SSRF defenses remain enabled.
+
+Deepseek Tag uses the sandbox/runtime composed by the active Harness profile.
+Each request owns a fresh live Agent handle and disposes it after idle. A cloud
+profile may provide a truly ephemeral isolated runtime; the default local
+profile provides Harness filesystem/command policy around the configured
+working directory, not a microVM. Files in that local working directory are
+therefore durable workspace files and are not represented as ephemeral.
 
 ## Development
 

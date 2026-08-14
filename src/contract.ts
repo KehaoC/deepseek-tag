@@ -22,6 +22,8 @@ export interface DeepseekTagSettings {
   dmAllowlist?: string[]
   /** Group chat ids admitted to use the bot; empty admits every group. */
   groupAllowlist?: string[]
+  /** Group chat ids whose memory is shared across this app workspace. */
+  workspaceMemoryGroups?: string[]
   /** Require a direct bot mention for top-level group messages. */
   requireMention?: boolean
   /** Agent working directory. Empty uses the Harness process directory. */

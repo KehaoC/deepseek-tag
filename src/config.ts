@@ -20,6 +20,7 @@ export interface ResolvedConfig {
   dmMode: DirectMessageMode
   dmAllowlist: string[]
   groupAllowlist: string[]
+  workspaceMemoryGroups: string[]
   requireMention: boolean
   cwd: string
   provider: string
@@ -35,6 +36,7 @@ export const Config: z<Config> = z.object({
   dmMode: z.union(['open', 'allowlist', 'disabled']).default('open'),
   dmAllowlist: z.array(z.string()).default([]),
   groupAllowlist: z.array(z.string()).default([]),
+  workspaceMemoryGroups: z.array(z.string()).default([]),
   requireMention: z.boolean().default(true),
   cwd: z.string().default(''),
   provider: z.string().default(''),

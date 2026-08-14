@@ -13,8 +13,9 @@ import {
   type NormalizedMessage,
 } from '@larksuite/channel'
 import type { ResolvedConfig } from './config.js'
+import type { TagMemoryStore } from './memory.js'
 import { finalTurnResult } from './response.js'
-import { conversationScope, createSessionId } from './scope.js'
+import { conversationPlace, conversationScope, createSessionId } from './scope.js'
 
 /** Narrow channel surface used by production and test transports. */
 export interface ChannelLike {
@@ -33,6 +34,7 @@ export interface ChannelLike {
 export interface BridgeOptions {
   config: ResolvedConfig
   appSecret: string
+  memory?: TagMemoryStore
   createChannel?: (config: ResolvedConfig, appSecret: string) => ChannelLike
 }
 
@@ -199,8 +201,16 @@ export class DeepseekTagBridge {
   private async activateConversation(message: NormalizedMessage): Promise<AgentHandle> {
     const scope = conversationScope(message)
     const { config } = this.options
+    const place = conversationPlace(message, config)
+    const actor = message.senderName?.trim() || message.senderId
     const sessionId = SessionId(createSessionId(scope, this.runtimeKey))
-    const options = { agentOptions: this.agentOptions }
+    const memory = this.options.memory
+    const options = {
+      agentOptions: this.agentOptions,
+      ...(memory === undefined
+        ? {}
+        : { setup: (agentCtx: Context) => { memory.install(agentCtx, place, actor) } }),
+    }
     const handle = this.persistedSessionIds.has(sessionId)
       ? await this.ctx.agents.resume({ resumeSessionId: sessionId, ...options })
       : await this.ctx.agents.create({

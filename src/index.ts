@@ -7,9 +7,13 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-credentials'
+import type {} from '@deepseek-ai/dsh-storage-domain'
+import type {} from '@deepseek-ai/dsh-system-prompt'
+import type {} from '@deepseek-ai/dsh-tools'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { Config, resolveConfig, type Config as ConfigShape } from './config.js'
 import { SETTINGS_NAMESPACE } from './contract.js'
+import { TagMemoryStore } from './memory.js'
 import { BridgeSupervisor, reportReconfigureFailure } from './supervisor.js'
 import { installWebSettingsEndpoint } from './web-settings.js'
 
@@ -19,7 +23,10 @@ export { Config, resolveConfig } from './config.js'
 export type { Config as DeepseekTagConfig, ResolvedConfig } from './config.js'
 export { finalTurnResult } from './response.js'
 export type { TurnResult } from './response.js'
-export { conversationScope, createSessionId } from './scope.js'
+export { TagMemoryStore, memoryDomainSpec } from './memory.js'
+export type { MemoryNote } from './memory.js'
+export { conversationPlace, conversationScope, createSessionId } from './scope.js'
+export type { ConversationPlace, MemoryAccess } from './scope.js'
 export { BridgeSupervisor } from './supervisor.js'
 export type { RunningBridge, SupervisorOptions } from './supervisor.js'
 
@@ -27,11 +34,13 @@ export type { RunningBridge, SupervisorOptions } from './supervisor.js'
 export const name = 'deepseek-tag'
 
 /** Core Harness capabilities required by the bridge and its configuration plane. */
-export const inject = ['agentDefaultModel', 'agents', 'settings']
+export const inject = ['agentDefaultModel', 'agents', 'settings', 'storageDomain', 'systemPrompt', 'tools']
 
 /** Activate the composition layer and optional live Web UI settings layer. */
-export function apply(ctx: Context, config: ConfigShape = {}): void {
-  const supervisor = new BridgeSupervisor(ctx)
+export async function apply(ctx: Context, config: ConfigShape = {}): Promise<void> {
+  const memory = await TagMemoryStore.open(ctx)
+  ctx.effect(() => () => memory.close(), 'deepseek-tag.memory')
+  const supervisor = new BridgeSupervisor(ctx, { memory })
   if (!resolveConfig(config).enabled) {
     ctx.logger.info('[deepseek-tag] disabled; configure the plugin before connecting')
   }

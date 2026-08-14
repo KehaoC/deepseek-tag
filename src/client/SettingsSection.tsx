@@ -228,6 +228,24 @@ export function TagSettingsSection(props: TagSettingsProps) {
         ))}
       </div>
 
+      <div className="dst-card">
+        <h3>{t('memory')}</h3>
+        <p className="dst-hint">{t('memoryHint')}</p>
+        <div className="dst-row">
+          <div className="dst-field">
+            <label htmlFor="dst-workspace-memory-groups">{t('workspaceMemoryGroups')}</label>
+            <span className="dst-hint">{t('workspaceMemoryGroupsHint')}</span>
+          </div>
+          <textarea
+            id="dst-workspace-memory-groups"
+            className="dst-textarea"
+            value={form.workspaceMemoryGroups.join('\n')}
+            disabled={!snapshot.writable}
+            onChange={event => { patch({ workspaceMemoryGroups: listOf(event.target.value) }) }}
+          />
+        </div>
+      </div>
+
       {validation === 'appId' ? <p className="dst-error">{t('invalidAppId')}</p> : null}
       {validation === 'dmAllowlist' ? <p className="dst-error">{t('invalidAllowlist')}</p> : null}
       {validation === 'modelRoute' ? <p className="dst-error">{t('invalidModelRoute')}</p> : null}

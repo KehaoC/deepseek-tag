@@ -28,7 +28,7 @@ flowchart LR
   SEC --> SUP
   SUP --> T
 
-  C -. future .-> MEM["Scoped memory"]
+  C --> MEM["Scoped memory"]
   C -. future .-> JOB["Routines and watchers"]
   R -. future .-> CONN["Connections, repos, skills"]
   R -. future .-> GOV["Policy, audit, usage limits"]
@@ -52,9 +52,10 @@ The stable boundaries are:
 - **Projection:** Agent events will be projected into acknowledgment, progress,
   tool activity, final response, and artifacts without coupling Lark rendering
   to the Agent loop.
-- **Durable state:** session history uses Harness persistence. Memory, routines,
-  subscriptions, and audit records will each get explicit stores instead of
-  being hidden in prompts or process globals.
+- **Durable state:** session history uses Harness persistence. Place memory uses
+  a schema-validated Harness storage domain; routines, subscriptions, and audit
+  records will get their own explicit stores instead of being hidden in prompts
+  or process globals.
 
 Do not add a plugin-level runtime abstraction until a second execution backend
 needs behavior that Harness `AgentRegistry` cannot express. The registry is the
@@ -71,7 +72,9 @@ the active Web profile composes.
 | Local and cloud-hosted Web runtime | Done | Outbound WebSocket needs no inbound public webhook; Agent execution stays in the composed Harness runtime |
 | DM conversation | Done | One durable Agent session per DM chat |
 | Group conversation | Done | Direct mention required by default; one session per topic/reply tree |
-| Multi-turn context | Done | Agent handle is reused in process and resumed from persistence after restart |
+| Multi-turn context | Done | Every turn resumes one durable thread session while its live Agent is released after idle |
+| Runtime lifecycle | Done | One Agent/sandbox activation per request; `AgentHandle.dispose()` releases the live scoped world while session persistence retains the thread |
+| Place memory | Done | DM isolation, private-group writes, read-only workspace inheritance, and explicit workspace-sharing groups over a durable storage domain |
 | Final text response | Done | Last visible assistant message from the completed turn is sent back to the originating Lark message |
 | Access policy | Done | DM modes plus DM-user and group-chat allowlists are enforced by the channel SDK |
 | Hot configuration | Done | Serialized reconnect, credential rotation, and restoration of the previous good config after a failed replacement |
@@ -102,7 +105,7 @@ commit with focused tests and migration-safe settings.
 | 9 | Model choice per thread/channel/DM | Model picker and commands with precedence: turn → thread → chat → Web profile default; validate against Harness catalog | Runtime policy + settings |
 | 10 | Per-channel customization/instructions | Scoped instructions, response behavior, workspace, runtime preset, and version with explicit inheritance | Scope configuration store |
 | 11 | Shared multi-user thread session | Preserve actor attribution, let any admitted member steer, serialize conflicting actions, record who changed what | Conversation coordinator + audit |
-| 12 | Channel memory | Explicit remember/list/update/forget operations; public-chat workspace sharing and private-chat isolation; admin review/delete | Scoped memory store + prompt section |
+| 12 | Channel memory | **Core done:** remember/list/update/forget tool, workspace sharing, private-chat isolation. Admin review/delete UI remains. | Scoped memory store + prompt section |
 | 13 | Dedicated agent identity | Separate application identity from invoking user; service-account credentials scoped to org/workspace/private chat equivalents | Identity and access bundles |
 | 14 | DM personal identity/connectors | Optional per-user connector resolution for DMs without leaking personal credentials into group sessions | User credential scope |
 | 15 | Connections and custom MCP servers | Admin-managed connection catalog, dedicated accounts, typed credential forms, MCP registration, allowed hosts | Harness tools/MCP + credentials |
@@ -112,7 +115,7 @@ commit with focused tests and migration-safe settings.
 | 19 | Channel watching | Event-driven watch rules with deduplication, rate limits, quiet hours, and explainable trigger state | Lark event subscriptions + jobs |
 | 20 | Pull-request subscriptions | Subscribe/unsubscribe from a thread, consume provider events, post state transitions and requested follow-ups | SCM connection + webhook/event worker |
 | 21 | Proactive follow-up and stalled-thread checks | Durable delayed checks, completion notifications, actor tagging, cancellation when the condition clears | Jobs + conversation state |
-| 22 | Ephemeral isolated sandboxes with durable thread state | Select local or cloud sandbox profile per scope, default-deny boundaries, idle disposal, durable resume | Harness sandbox/runtime composition |
+| 22 | Ephemeral isolated sandboxes with durable thread state | **Lifecycle done:** idle disposal and durable resume. Per-scope runtime selection and cloud isolation remain; local Harness sandbox is policy confinement, not a microVM. | Harness sandbox/runtime composition |
 | 23 | Default-deny network and Agent Proxy | Per-connection host allowlists, SSRF-safe egress, optional fixed proxy/egress, blocked-destination diagnostics | Sandbox network policy |
 | 24 | Organization/workspace/private-channel inheritance | Three-level policy, credential, repo, instruction, and memory resolution with overlap rules and isolation | Scope/access resolver |
 | 25 | Member/guest/external-chat restrictions | Role and tenant checks before Agent creation; fail closed for externally shared chats unless allowed | Admission + directory integration |

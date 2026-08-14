@@ -5,6 +5,7 @@ import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { deepEqualJson } from '@deepseek-ai/dsh-settings'
 import { DeepseekTagBridge } from './bridge.js'
 import { resolveConfig, type Config, type ResolvedConfig } from './config.js'
+import type { TagMemoryStore } from './memory.js'
 
 /** Running bridge surface used by the production factory and lifecycle tests. */
 export interface RunningBridge {
@@ -15,6 +16,7 @@ export interface RunningBridge {
 /** Supervisor construction seams. */
 export interface SupervisorOptions {
   createBridge?: (config: ResolvedConfig, appSecret: string) => RunningBridge
+  memory?: TagMemoryStore
 }
 
 interface ActiveBridge {
@@ -119,6 +121,7 @@ export class BridgeSupervisor {
       ?? ((nextConfig, nextSecret) => new DeepseekTagBridge(this.ctx, {
         config: nextConfig,
         appSecret: nextSecret,
+        ...(this.options.memory === undefined ? {} : { memory: this.options.memory }),
       })))(config, appSecret)
   }
 }
