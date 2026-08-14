@@ -75,6 +75,7 @@ the active Web profile composes.
 | Thread continuation | Done | Once a topic/reply tree owns a durable session, admitted members can continue without mentioning the bot again |
 | Multi-turn context | Done | Every turn resumes one durable thread session while its live Agent is released after idle |
 | Runtime lifecycle | Done | One Agent/sandbox activation per request; `AgentHandle.dispose()` releases the live scoped world while session persistence retains the thread |
+| Thread isolation | Done | Same-thread turns serialize; sibling topics in one group may run concurrently with separate live Agent scopes |
 | Place memory | Done | DM isolation, private-group writes, read-only workspace inheritance, and explicit workspace-sharing groups over a durable storage domain |
 | Final text response | Done | Last visible assistant message from the completed turn is sent back to the originating Lark message |
 | Access policy | Done | DM modes plus DM-user and group-chat allowlists are enforced by the channel SDK |

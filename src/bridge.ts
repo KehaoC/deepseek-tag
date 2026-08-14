@@ -13,6 +13,7 @@ import {
   type NormalizedMessage,
 } from '@larksuite/channel'
 import type { ResolvedConfig } from './config.js'
+import { ConversationQueue } from './conversation-queue.js'
 import type { TagMemoryStore } from './memory.js'
 import { finalTurnResult } from './response.js'
 import { conversationPlace, conversationScope, createSessionId } from './scope.js'
@@ -91,7 +92,9 @@ export function productionChannel(config: ResolvedConfig, appSecret: string): La
       respondToMentionAll: false,
     },
     safety: {
-      chatQueue: { enabled: true, mergeWhileBusy: false },
+      // A Lark group may contain independent topics. The bridge serializes by
+      // durable conversation scope instead of blocking the whole chat.
+      chatQueue: { enabled: false },
     },
     keepalive: { enabled: true },
     wsConfig: { pingTimeout: 3 },
@@ -112,6 +115,7 @@ export class DeepseekTagBridge {
   private readonly channel: ChannelLike
   private readonly agentOptions: AgentOptions
   private readonly runtimeKey: string
+  private readonly queue = new ConversationQueue()
   private readonly active = new Set<Promise<void>>()
   private readonly persistedSessionIds = new Set<string>()
   private unsubscribe: (() => void) | undefined
@@ -194,6 +198,11 @@ export class DeepseekTagBridge {
     } catch (error) {
       this.ctx.logger.warn('[deepseek-tag] topic thread lookup failed for %s: %s', input.messageId, messageOf(error))
     }
+    await this.queue.run(conversationScope(message), () => this.deliverMessage(message))
+  }
+
+  private async deliverMessage(message: NormalizedMessage): Promise<void> {
+    if (this.stopped) return
     if (!this.admits(message)) return
     const content = this.promptFor(message)
     if (content === undefined) {

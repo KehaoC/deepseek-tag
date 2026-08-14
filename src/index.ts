@@ -22,6 +22,7 @@ export { admitsConversationMessage, DeepseekTagBridge, productionChannel, resolv
 export type { BridgeOptions, ChannelLike } from './bridge.js'
 export { Config, resolveConfig } from './config.js'
 export type { Config as DeepseekTagConfig, ResolvedConfig } from './config.js'
+export { ConversationQueue } from './conversation-queue.js'
 export { finalTurnResult } from './response.js'
 export type { TurnResult } from './response.js'
 export { TagMemoryStore, memoryDomainSpec } from './memory.js'

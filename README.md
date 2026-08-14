@@ -139,8 +139,9 @@ dsh --profile web
 - Transport ids are hashed before place-memory keys reach durable storage.
 - Private groups cannot modify workspace memory; DMs cannot read group or
   workspace memory.
-- Lark SDK message deduplication, per-chat serialization, reconnect handling,
-  outbound validation, and SSRF defenses remain enabled.
+- Lark SDK message deduplication, reconnect handling, outbound validation, and
+  SSRF defenses remain enabled. Deepseek Tag serializes one topic/reply tree at
+  a time while allowing independent topics in the same group to run concurrently.
 
 Deepseek Tag uses the sandbox/runtime composed by the active Harness profile.
 Each request owns a fresh live Agent handle and disposes it after idle. A cloud
