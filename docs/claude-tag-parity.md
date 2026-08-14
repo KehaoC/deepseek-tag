@@ -72,6 +72,7 @@ the active Web profile composes.
 | Local and cloud-hosted Web runtime | Done | Outbound WebSocket needs no inbound public webhook; Agent execution stays in the composed Harness runtime |
 | DM conversation | Done | One durable Agent session per DM chat |
 | Group conversation | Done | Direct mention required by default; one session per topic/reply tree |
+| Thread continuation | Done | Once a topic/reply tree owns a durable session, admitted members can continue without mentioning the bot again |
 | Multi-turn context | Done | Every turn resumes one durable thread session while its live Agent is released after idle |
 | Runtime lifecycle | Done | One Agent/sandbox activation per request; `AgentHandle.dispose()` releases the live scoped world while session persistence retains the thread |
 | Place memory | Done | DM isolation, private-group writes, read-only workspace inheritance, and explicit workspace-sharing groups over a durable storage domain |
@@ -99,7 +100,7 @@ commit with focused tests and migration-safe settings.
 | 3 | Immediate acknowledgment and visible work checklist | Reply with a Lark card, project Agent todo/step state, update in place, finish with final status | Agent event projection |
 | 4 | Steering a task while it is running | Accept thread follow-ups during a run, distinguish steering from queued next-turn messages, expose stop/restart | Conversation coordinator |
 | 5 | Exact user commands | Implement deterministic `!restart`, `!mute`, `!unmute`, feedback, routine listing, and thread handoff equivalents before normal prompting | Command router |
-| 6 | Mention, continuation, auto-response, and mute rules | Mention guarantees; no re-mention inside owned threads; per-chat automatic-response and mute settings | Admission policy |
+| 6 | Mention, continuation, auto-response, and mute rules | **Continuation done:** initial mention plus no re-mention inside owned threads. Per-chat automatic-response and mute settings remain. | Admission policy |
 | 7 | Files and images in prompts | Authenticated download, size/type limits, Harness attachment ingestion, cleanup, and explicit unsupported-type errors | Transport ↔ attachment service |
 | 8 | Rich final outputs | Lark files/cards plus Harness deliverables for documents, charts, hosted pages, and repository links | Result/artifact projection |
 | 9 | Model choice per thread/channel/DM | Model picker and commands with precedence: turn → thread → chat → Web profile default; validate against Harness catalog | Runtime policy + settings |

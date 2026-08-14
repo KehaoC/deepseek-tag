@@ -4,7 +4,7 @@ import { createAssistantMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { NormalizedMessage } from '@larksuite/channel'
 import { describe, expect, it, vi } from 'vitest'
-import { DeepseekTagBridge, type ChannelLike } from '../src/bridge.js'
+import { admitsConversationMessage, DeepseekTagBridge, type ChannelLike } from '../src/bridge.js'
 import { resolveConfig } from '../src/config.js'
 import { createSessionId } from '../src/scope.js'
 
@@ -26,6 +26,15 @@ function message(overrides: Partial<NormalizedMessage> = {}): NormalizedMessage 
 }
 
 describe('Deepseek Tag bridge', () => {
+  it('requires the first group mention and admits later thread continuations', () => {
+    const group = message({ chatType: 'group', mentionedBot: false })
+    expect(admitsConversationMessage(group, true, false)).toBe(false)
+    expect(admitsConversationMessage(group, true, true)).toBe(true)
+    expect(admitsConversationMessage({ ...group, mentionedBot: true }, true, false)).toBe(true)
+    expect(admitsConversationMessage(group, false, false)).toBe(true)
+    expect(admitsConversationMessage(message(), true, false)).toBe(true)
+  })
+
   it('releases each live runtime and resumes the durable conversation', async () => {
     let handlers: Parameters<ChannelLike['on']>[0] | undefined
     const replies: string[] = []

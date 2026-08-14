@@ -126,6 +126,8 @@ dsh --profile web
 
 - The installed bundle is disabled until explicitly configured.
 - Group messages require a direct mention by default.
+- Replies inside a Deepseek Tag-owned group topic/reply tree continue without
+  another mention; unrelated group messages remain ignored.
 - `respondToMentionAll` is disabled.
 - App secrets are resolved through the Harness credential seam or the named
   environment variable and are never logged.

@@ -17,7 +17,7 @@ import { TagMemoryStore } from './memory.js'
 import { BridgeSupervisor, reportReconfigureFailure } from './supervisor.js'
 import { installWebSettingsEndpoint } from './web-settings.js'
 
-export { DeepseekTagBridge, productionChannel } from './bridge.js'
+export { admitsConversationMessage, DeepseekTagBridge, productionChannel } from './bridge.js'
 export type { BridgeOptions, ChannelLike } from './bridge.js'
 export { Config, resolveConfig } from './config.js'
 export type { Config as DeepseekTagConfig, ResolvedConfig } from './config.js'

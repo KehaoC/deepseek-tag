@@ -47,6 +47,15 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+/** Session-aware mention policy applied after the transport's coarse gates. */
+export function admitsConversationMessage(
+  message: NormalizedMessage,
+  requireMention: boolean,
+  sessionExists: boolean,
+): boolean {
+  return message.chatType === 'p2p' || !requireMention || message.mentionedBot || sessionExists
+}
+
 /** Create the production Lark WebSocket channel. */
 export function productionChannel(config: ResolvedConfig, appSecret: string): LarkChannel {
   return createLarkChannel({
@@ -60,7 +69,10 @@ export function productionChannel(config: ResolvedConfig, appSecret: string): La
       dmMode: config.dmMode,
       dmAllowlist: config.dmAllowlist,
       groupAllowlist: config.groupAllowlist,
-      requireMention: config.requireMention,
+      // Continuations in an existing thread do not require another mention.
+      // The bridge owns that session-aware gate; the transport cannot know
+      // whether a durable Harness session already exists.
+      requireMention: false,
       respondToMentionAll: false,
     },
     safety: {
@@ -158,6 +170,7 @@ export class DeepseekTagBridge {
 
   private async handleMessage(message: NormalizedMessage): Promise<void> {
     if (this.stopped) return
+    if (!this.admits(message)) return
     const content = this.promptFor(message)
     if (content === undefined) {
       await this.safeReply(message, ATTACHMENT_NOTICE)
@@ -203,7 +216,7 @@ export class DeepseekTagBridge {
     const { config } = this.options
     const place = conversationPlace(message, config)
     const actor = message.senderName?.trim() || message.senderId
-    const sessionId = SessionId(createSessionId(scope, this.runtimeKey))
+    const sessionId = this.sessionIdForScope(scope)
     const memory = this.options.memory
     const options = {
       agentOptions: this.agentOptions,
@@ -220,6 +233,16 @@ export class DeepseekTagBridge {
       })
     this.persistedSessionIds.add(sessionId)
     return handle
+  }
+
+  /** Require an initial group mention, but let an owned thread continue freely. */
+  private admits(message: NormalizedMessage): boolean {
+    const sessionExists = this.persistedSessionIds.has(this.sessionIdForScope(conversationScope(message)))
+    return admitsConversationMessage(message, this.options.config.requireMention, sessionExists)
+  }
+
+  private sessionIdForScope(scope: string): SessionId {
+    return SessionId(createSessionId(scope, this.runtimeKey))
   }
 
   private async safeReply(message: NormalizedMessage, markdown: string): Promise<void> {
