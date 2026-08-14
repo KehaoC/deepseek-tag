@@ -209,8 +209,8 @@ commit with focused tests and migration-safe settings.
 | 6 | Mention, continuation, auto-response, and mute rules | **Continuation done:** initial mention plus no re-mention inside owned threads. Per-chat automatic-response and mute settings remain. | Admission policy |
 | 7 | Files and images in prompts | Authenticated download, size/type limits, Harness attachment ingestion, cleanup, and explicit unsupported-type errors | Transport ↔ attachment service |
 | 8 | Rich final outputs | Lark files/cards plus Harness deliverables for documents, charts, hosted pages, and repository links | Result/artifact projection |
-| 9 | Model choice per thread/channel/DM | Model picker and commands with precedence: turn → thread → chat → Web profile default; validate against Harness catalog | Runtime policy + settings |
-| 10 | Per-channel customization/instructions | Scoped instructions, response behavior, workspace, runtime preset, and version with explicit inheritance | Scope configuration store |
+| 9 | Model choice per thread/channel/DM | **Scope runtime done:** a group may inherit or override an Agent profile model and each thread freezes the materialized route. Per-thread commands and the scope editor remain. | Runtime policy + settings |
+| 10 | Per-channel customization/instructions | **Core runtime done:** installation, Agent profile, and exact-group instructions concatenate deterministically; response mode and workspace template resolve narrowest-first and persist in a thread snapshot. Admin management UI remains. | Scope configuration store |
 | 11 | Shared multi-user thread session | Preserve actor attribution, let any admitted member steer, serialize conflicting actions, record who changed what | Conversation coordinator + audit |
 | 12 | Channel memory | **Core done:** remember/list/update/forget tool, workspace sharing, private-chat isolation. Admin review/delete UI remains. | Scoped memory store + prompt section |
 | 13 | Dedicated agent identity | Separate application identity from invoking user; service-account credentials scoped to org/workspace/private chat equivalents | Identity and access bundles |
@@ -224,7 +224,7 @@ commit with focused tests and migration-safe settings.
 | 21 | Proactive follow-up and stalled-thread checks | Durable delayed checks, completion notifications, actor tagging, cancellation when the condition clears | Jobs + conversation state |
 | 22 | Ephemeral isolated sandboxes with durable thread state | **Lifecycle done:** idle disposal and durable resume. Per-scope runtime selection and cloud isolation remain; local Harness sandbox is policy confinement, not a microVM. | Harness sandbox/runtime composition |
 | 23 | Default-deny network and Agent Proxy | Per-connection host allowlists, SSRF-safe egress, optional fixed proxy/egress, blocked-destination diagnostics | Sandbox network policy |
-| 24 | Organization/workspace/private-channel inheritance | Three-level policy, credential, repo, instruction, and memory resolution with overlap rules and isolation | Scope/access resolver |
+| 24 | Organization/workspace/private-channel inheritance | **Behavior foundation done:** app installation → Agent profile → exact Lark group resolution, thread snapshots, disabled-scope fail-closed behavior, and empty organization grants in DMs. GitHub bundles and live authorization remain. | Scope/access resolver |
 | 25 | Member/guest/external-chat restrictions | Role and tenant checks before Agent creation; fail closed for externally shared chats unless allowed | Admission + directory integration |
 | 26 | Spend limits and threshold alerts | Organization and per-chat budgets, pre-turn refusal, 75/95% alerts, usage summaries | Token meter + durable usage policy |
 | 27 | Audit and traceability | Searchable task/routine/network/tool/setting audit; source message and external action correlation | Append-only audit projection |

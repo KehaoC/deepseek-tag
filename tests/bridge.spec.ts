@@ -278,6 +278,7 @@ describe('Deepseek Tag bridge', () => {
     }
     const prompts: UserMessage[] = []
     const tools: ToolDefinition[] = []
+    const sections: Array<{ name: string; order: number; text: string }> = []
     const events: SessionEvent[] = []
     const handle = {
       agent: {
@@ -302,7 +303,10 @@ describe('Deepseek Tag bridge', () => {
     } as unknown as AgentHandle
     const create = vi.fn(async (options: { setup?: (ctx: Context) => void }) => {
       options.setup?.({
-        systemPrompt: { section: vi.fn(() => vi.fn()) },
+        systemPrompt: { section: vi.fn((section: { name: string; order: number; text: string }) => {
+          sections.push(section)
+          return vi.fn()
+        }) },
         tools: { register: vi.fn((tool: ToolDefinition) => { tools.push(tool); return vi.fn() }) },
       } as unknown as Context)
       return handle
@@ -314,7 +318,24 @@ describe('Deepseek Tag bridge', () => {
       get: () => ({ list: vi.fn(async () => []) }),
     } as unknown as Context
     const bridge = new DeepseekTagBridge(ctx, {
-      config: resolveConfig({ enabled: true, appId: 'cli_test' }),
+      config: resolveConfig({
+        enabled: true,
+        appId: 'cli_test',
+        defaultInstructions: 'Organization guidance.',
+        defaultAgentProfileId: 'summarizer',
+        agentProfiles: [{
+          id: 'summarizer',
+          name: 'Summarizer',
+          instructions: 'Keep {{model}} literal.',
+          provider: 'scoped-provider',
+          model: 'scoped-model',
+          cwd: '/scoped-workspace',
+        }],
+        groupScopes: [
+          { chatId: 'oc_chat', instructions: 'Channel guidance.' },
+          { chatId: 'oc_disabled', enabled: false },
+        ],
+      }),
       appSecret: 'secret',
       createChannel: () => channel,
     })
@@ -338,6 +359,21 @@ describe('Deepseek Tag bridge', () => {
     })
     expect((prompts[0]?.content[0] as { text?: string }).text).toContain('context before the mention')
     expect(tools.map(tool => tool.name)).toContain('deepseek_tag_history')
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      agentOptions: { provider: 'scoped-provider', model: 'scoped-model' },
+      meta: { cwd: '/scoped-workspace' },
+    }))
+    expect(sections).toContainEqual(expect.objectContaining({
+      name: 'deepseek-tag:scope-instructions',
+      text: expect.stringContaining('Organization guidance.\n\nKeep {\u200B{model}} literal.\n\nChannel guidance.'),
+    }))
+
+    await handlers?.message?.(message({
+      chatId: 'oc_disabled',
+      chatType: 'group',
+      mentionedBot: true,
+    }))
+    expect(create).toHaveBeenCalledOnce()
     await bridge.stop()
   })
 })

@@ -20,6 +20,14 @@ import {
   TagHistoryAccess,
 } from './history.js'
 import type { TagMemoryStore } from './memory.js'
+import { resolveAgentBehavior } from './agent-scope.js'
+import type { ResolvedAgentBehavior } from './agent-scope.js'
+import {
+  literalPromptText,
+  materializeThreadBehavior,
+  type TagThreadConfigStore,
+  type ThreadAgentBehavior,
+} from './thread-config.js'
 import { finalTurnResult } from './response.js'
 import {
   finalizeRunCardState,
@@ -58,6 +66,7 @@ export interface BridgeOptions {
   config: ResolvedConfig
   appSecret: string
   memory?: TagMemoryStore
+  threadConfig?: TagThreadConfigStore
   createChannel?: (config: ResolvedConfig, appSecret: string) => ChannelLike
 }
 
@@ -137,7 +146,7 @@ export function productionChannel(config: ResolvedConfig, appSecret: string): La
  */
 export class DeepseekTagBridge {
   private readonly channel: ChannelLike
-  private readonly agentOptions: AgentOptions
+  private readonly defaultAgentOptions: Required<Pick<AgentOptions, 'provider' | 'model'>>
   private readonly runtimeKey: string
   private readonly queue = new ConversationQueue()
   private readonly active = new Set<Promise<void>>()
@@ -150,7 +159,7 @@ export class DeepseekTagBridge {
     const selected = options.config.provider === ''
       ? ctx.agentDefaultModel.currentSelection()
       : { provider: options.config.provider, model: options.config.model }
-    this.agentOptions = { provider: selected.provider, model: selected.model }
+    this.defaultAgentOptions = { provider: selected.provider, model: selected.model }
     this.runtimeKey = [
       options.config.tenant,
       options.config.appId,
@@ -227,9 +236,11 @@ export class DeepseekTagBridge {
 
   private async deliverMessage(message: NormalizedMessage): Promise<void> {
     if (this.stopped) return
-    if (!this.admits(message)) return
     const scope = conversationScope(message)
     const sessionExists = this.persistedSessionIds.has(this.sessionIdForScope(scope))
+    const currentBehavior = resolveAgentBehavior(this.options.config, message)
+    if (!currentBehavior.enabled || !this.admits(message, currentBehavior, sessionExists)) return
+    const behavior = await this.threadBehavior(scope, currentBehavior, sessionExists)
     const history = supportsHistory(this.channel)
       ? new TagHistoryAccess(this.channel, message)
       : undefined
@@ -252,7 +263,7 @@ export class DeepseekTagBridge {
     let stopProjection: (() => void) | undefined
     let state: RunCardState = initialRunCardState
     try {
-      handle = await this.activateConversation(message, history)
+      handle = await this.activateConversation(message, history, behavior)
       const session = handle.agent.session
       const startSeq = session.events.length
       progress = await this.openProgressCard(message)
@@ -311,6 +322,7 @@ export class DeepseekTagBridge {
   private async activateConversation(
     message: NormalizedMessage,
     history: TagHistoryAccess | undefined,
+    behavior: ThreadAgentBehavior,
   ): Promise<AgentHandle> {
     const scope = conversationScope(message)
     const { config } = this.options
@@ -318,21 +330,33 @@ export class DeepseekTagBridge {
     const actor = message.senderName?.trim() || message.senderId
     const sessionId = this.sessionIdForScope(scope)
     const memory = this.options.memory
-    const setup = memory === undefined && history === undefined
+    const hasInstructions = behavior.instructions.trim().length > 0
+    const setup = memory === undefined && history === undefined && !hasInstructions
       ? undefined
       : (agentCtx: Context): void => {
+          if (hasInstructions) {
+            agentCtx.systemPrompt.section({
+              name: 'deepseek-tag:scope-instructions',
+              order: 70,
+              text: [
+                `You are operating as the ${JSON.stringify(behavior.profileName)} Agent profile for this Lark thread.`,
+                'Follow these administrator-configured standing instructions:',
+                literalPromptText(behavior.instructions),
+              ].join('\n'),
+            })
+          }
           memory?.install(agentCtx, place, actor)
           history?.install(agentCtx)
         }
     const options = {
-      agentOptions: this.agentOptions,
+      agentOptions: { provider: behavior.provider, model: behavior.model },
       ...(setup === undefined ? {} : { setup }),
     }
     const handle = this.persistedSessionIds.has(sessionId)
       ? await this.ctx.agents.resume({ resumeSessionId: sessionId, ...options })
       : await this.ctx.agents.create({
         sessionId,
-        meta: { cwd: config.cwd === '' ? process.cwd() : config.cwd },
+        meta: { cwd: behavior.cwd },
         ...options,
       })
     this.persistedSessionIds.add(sessionId)
@@ -340,9 +364,24 @@ export class DeepseekTagBridge {
   }
 
   /** Require an initial group mention, but let an owned thread continue freely. */
-  private admits(message: NormalizedMessage): boolean {
-    const sessionExists = this.persistedSessionIds.has(this.sessionIdForScope(conversationScope(message)))
-    return admitsConversationMessage(message, this.options.config.requireMention, sessionExists)
+  private admits(
+    message: NormalizedMessage,
+    behavior: ResolvedAgentBehavior,
+    sessionExists: boolean,
+  ): boolean {
+    return admitsConversationMessage(message, behavior.requireMention, sessionExists)
+  }
+
+  private async threadBehavior(
+    scope: string,
+    current: ResolvedAgentBehavior,
+    sessionExists: boolean,
+  ): Promise<ThreadAgentBehavior> {
+    const materialized = materializeThreadBehavior(current, this.defaultAgentOptions, process.cwd())
+    const store = this.options.threadConfig
+    return store === undefined
+      ? materialized
+      : store.resolve(this.sessionIdForScope(scope), materialized, sessionExists)
   }
 
   private sessionIdForScope(scope: string): SessionId {

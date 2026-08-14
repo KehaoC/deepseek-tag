@@ -17,9 +17,17 @@ import { SETTINGS_NAMESPACE } from './contract.js'
 import { TagMemoryStore } from './memory.js'
 import { BridgeSupervisor, reportReconfigureFailure } from './supervisor.js'
 import { installWebSettingsEndpoint } from './web-settings.js'
+import { TagThreadConfigStore } from './thread-config.js'
 
 export { resolveAgentBehavior } from './agent-scope.js'
 export type { AgentScopeTarget, ResolvedAgentBehavior } from './agent-scope.js'
+export {
+  literalPromptText,
+  materializeThreadBehavior,
+  TagThreadConfigStore,
+  threadConfigDomainSpec,
+} from './thread-config.js'
+export type { ThreadAgentBehavior, ThreadConfigSnapshot } from './thread-config.js'
 
 export { admitsConversationMessage, DeepseekTagBridge, productionChannel, resolveTopicThread } from './bridge.js'
 export type { BridgeOptions, ChannelLike } from './bridge.js'
@@ -68,7 +76,9 @@ export const inject = [
 export async function apply(ctx: Context, config: ConfigShape = {}): Promise<void> {
   const memory = await TagMemoryStore.open(ctx)
   ctx.effect(() => () => memory.close(), 'deepseek-tag.memory')
-  const supervisor = new BridgeSupervisor(ctx, { memory })
+  const threadConfig = await TagThreadConfigStore.open(ctx)
+  ctx.effect(() => () => threadConfig.close(), 'deepseek-tag.thread-config')
+  const supervisor = new BridgeSupervisor(ctx, { memory, threadConfig })
   if (!resolveConfig(config).enabled) {
     ctx.logger.info('[deepseek-tag] disabled; configure the plugin before connecting')
   }

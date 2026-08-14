@@ -6,6 +6,7 @@ import { deepEqualJson } from '@deepseek-ai/dsh-settings'
 import { DeepseekTagBridge } from './bridge.js'
 import { resolveConfig, type Config, type ResolvedConfig } from './config.js'
 import type { TagMemoryStore } from './memory.js'
+import type { TagThreadConfigStore } from './thread-config.js'
 
 /** Running bridge surface used by the production factory and lifecycle tests. */
 export interface RunningBridge {
@@ -17,6 +18,7 @@ export interface RunningBridge {
 export interface SupervisorOptions {
   createBridge?: (config: ResolvedConfig, appSecret: string) => RunningBridge
   memory?: TagMemoryStore
+  threadConfig?: TagThreadConfigStore
 }
 
 interface ActiveBridge {
@@ -122,6 +124,7 @@ export class BridgeSupervisor {
         config: nextConfig,
         appSecret: nextSecret,
         ...(this.options.memory === undefined ? {} : { memory: this.options.memory }),
+        ...(this.options.threadConfig === undefined ? {} : { threadConfig: this.options.threadConfig }),
       })))(config, appSecret)
   }
 }
