@@ -32,6 +32,8 @@ export interface LarkPermissionView {
     | 'directMessages'
     | 'groupHistory'
     | 'chatContext'
+    | 'progressCards'
+    | 'reactions'
   >
   error?: string
 }

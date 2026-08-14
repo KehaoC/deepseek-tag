@@ -5,7 +5,7 @@ platform's WebSocket long connection. It runs inside the same Harness process,
 so it works with both local and cloud-hosted runtimes and does not require a
 public webhook endpoint.
 
-The current release provides the phase-one text conversation path:
+The current release provides the phase-one conversation path and live task UX:
 
 - direct messages and `@bot` group messages;
 - one Harness session per DM, group topic, or reply tree;
@@ -17,7 +17,8 @@ The current release provides the phase-one text conversation path:
   messages and explicitly selected sibling topics;
 - place-scoped durable memory with DM isolation, private-group memory, and
   explicitly enabled workspace-sharing groups;
-- replies returned to the originating Feishu/Lark conversation;
+- immediate working reaction, streamed answer card, visible tool status, and
+  real Agent todo checklist in the originating Feishu/Lark conversation;
 - sender-aware shared group context;
 - a dedicated **Settings > Deepseek Tag** Web UI with live reconfiguration;
 - guided one-click app creation and incremental permission authorization;
@@ -102,10 +103,12 @@ For manual setup, use a PersonalAgent or custom app with bot capability and
 subscribe to `im.message.receive_v1` through WebSocket long connection. The
 least-privilege runtime bundle is `application:application:self_manage`,
 `im:message:readonly`, `im:message:send_as_bot`,
-`im:message.p2p_msg:readonly`, `im:message.group_msg`, `im:chat:read`, and
-`im:chat.members:read`. The broader `im:message` and `im:chat:readonly` grants
-remain compatible. Publish a new app version after changing permissions or
-events. No callback URL, public port, or reverse proxy is required.
+`im:message.p2p_msg:readonly`, `im:message.group_msg`, `im:chat:read`,
+`im:chat.members:read`, `cardkit:card:write`, and
+`im:message.reactions:write_only`. The broader `im:message` and
+`im:chat:readonly` grants remain compatible. Publish a new app version after
+changing permissions or events. No callback URL, public port, or reverse proxy
+is required.
 
 Before enabling the bridge, restrict the app's availability and configure the
 DM/group allowlists to match the people and chats that may operate the Agent.

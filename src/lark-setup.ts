@@ -25,6 +25,8 @@ export const REQUIRED_LARK_SCOPES = [
   'im:message.group_msg',
   'im:chat:read',
   'im:chat.members:read',
+  'cardkit:card:write',
+  'im:message.reactions:write_only',
 ] as const
 
 const RECOGNIZED_LARK_SCOPES = [
@@ -249,12 +251,17 @@ export async function inspectLarkPermissions(
     const chatMembers = actualScopes.has('im:chat')
       || actualScopes.has('im:chat:readonly')
       || actualScopes.has('im:chat.members:read')
+    const progressCards = actualScopes.has('cardkit:card:write')
+    const reactions = actualScopes.has('im:message')
+      || actualScopes.has('im:message.reactions:write_only')
     const capabilities: LarkPermissionView['capabilities'] = [
       'appInspection',
       ...(messageRead && messageSend ? ['messages' as const] : []),
       ...(directMessages ? ['directMessages' as const] : []),
       ...(groupHistory ? ['groupHistory' as const] : []),
       ...(chatRead && chatMembers ? ['chatContext' as const] : []),
+      ...(progressCards ? ['progressCards' as const] : []),
+      ...(reactions ? ['reactions' as const] : []),
     ]
     const missingScopes = [
       ...(!messageRead ? ['im:message:readonly'] : []),
@@ -263,6 +270,8 @@ export async function inspectLarkPermissions(
       ...(!groupHistory ? ['im:message.group_msg'] : []),
       ...(!chatRead ? ['im:chat:read'] : []),
       ...(!chatMembers ? ['im:chat.members:read'] : []),
+      ...(!progressCards ? ['cardkit:card:write'] : []),
+      ...(!reactions ? ['im:message.reactions:write_only'] : []),
     ]
     return {
       status: missingScopes.length === 0 ? 'ready' : 'missing',

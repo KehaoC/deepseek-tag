@@ -101,7 +101,7 @@ attachments continue in the parity work below.
   asks where the Agent may run, and launches only after the prerequisite steps.
 - **Lark equivalent:** `registerApp` opens Feishu/Lark's official PersonalAgent
   create page with the app name, bot template, `im.message.receive_v1`, and all
-  seven runtime scopes prefilled. The same device flow with `appId + addons`
+  nine runtime scopes prefilled. The same device flow with `appId + addons`
   performs one additive authorization for an existing app. Scope preflight
   retries through the platform's eventual-consistency window after the admin
   confirms the official page. Feishu does not expose a reliable event inventory
@@ -138,6 +138,28 @@ attachments continue in the parity work below.
   Agent can list current-channel history and open a sibling topic, while a
   thread from another chat is rejected.
 
+### Live progress parity
+
+- **Observed Claude behavior:** a task is acknowledged immediately, longer work
+  exposes a checklist that changes as steps complete, and the final response
+  remains in the originating thread.
+- **Lark equivalent:** the bot adds a temporary native working reaction and
+  sends one managed CardKit 2.0 entity as a reply. Harness `assistant/chunk`,
+  `tool/call`, `tool/result`, and `todo/write` events update that entity in
+  sequence; the terminal update closes streaming mode. Feishu currently has no
+  published whale `emoji_type`, so the supported `Typing` reaction is used.
+- **Dependencies:** `cardkit:card:write`, either
+  `im:message.reactions:write_only` or the broader `im:message`, and the existing
+  bot reply permission. The guided setup requests the least-privilege pair.
+- **Security:** tool arguments, tool output, and model reasoning never enter the
+  card. Only tool names and status are projected. Card text is bounded below
+  Feishu's message limit; a long final answer continues through the SDK's
+  chunked markdown path.
+- **Acceptance:** reaction appears while a turn runs and is removed afterward;
+  streamed text, actual Agent todos, and tool state update one in-thread card;
+  card failure produces the complete plain-text answer instead of losing the
+  turn.
+
 ## Phase 2 feature ledger
 
 The order column is dependency order, not a promise that unrelated rows must
@@ -148,7 +170,7 @@ commit with focused tests and migration-safe settings.
 | ---: | --- | --- | --- |
 | 1 | Guided workspace pairing/setup | **Done:** one-page PersonalAgent creation, host-only credential handoff, manual fallback, access-scope choices, Harness model/directory selectors, cancellation and expiry | Control plane + `registerApp` |
 | 2 | Setup/test and troubleshooting feedback | **Permission preflight done.** Live connection state, bot identity, last transport error, and send/receive self-test remain | Transport status projection |
-| 3 | Immediate acknowledgment and visible work checklist | Reply with a Lark card, project Agent todo/step state, update in place, finish with final status | Agent event projection |
+| 3 | Immediate acknowledgment and visible work checklist | **Done:** a working reaction acknowledges intake; a managed CardKit card projects streamed answer text, redacted tool status, and real Agent todos in place, then closes with final status; text reply remains the failure fallback | Agent event projection |
 | 4 | Steering a task while it is running | Accept thread follow-ups during a run, distinguish steering from queued next-turn messages, expose stop/restart | Conversation coordinator |
 | 5 | Exact user commands | Implement deterministic `!restart`, `!mute`, `!unmute`, feedback, routine listing, and thread handoff equivalents before normal prompting | Command router |
 | 6 | Mention, continuation, auto-response, and mute rules | **Continuation done:** initial mention plus no re-mention inside owned threads. Per-chat automatic-response and mute settings remain. | Admission policy |

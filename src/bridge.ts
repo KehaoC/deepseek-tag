@@ -21,6 +21,15 @@ import {
 } from './history.js'
 import type { TagMemoryStore } from './memory.js'
 import { finalTurnResult } from './response.js'
+import {
+  finalizeRunCardState,
+  initialRunCardState,
+  ManagedRunCard,
+  reduceRunCardState,
+  runCardNeedsContinuation,
+  type ManagedCardChannel,
+  type RunCardState,
+} from './run-card.js'
 import { conversationPlace, conversationScope, createSessionId } from './scope.js'
 
 /** Narrow channel surface used by production and test transports. */
@@ -34,6 +43,11 @@ export interface ChannelLike {
   connect(): Promise<void>
   disconnect(): Promise<void>
   reply(message: NormalizedMessage, input: { markdown: string }): Promise<unknown>
+  createCard?: ManagedCardChannel['createCard']
+  send?: ManagedCardChannel['send']
+  updateCardById?: ManagedCardChannel['updateCardById']
+  addReaction?(messageId: string, emojiType: string): Promise<string>
+  removeReaction?(messageId: string, reactionId: string): Promise<void>
   fetchRawMessage?(messageId: string): Promise<unknown[]>
   readonly rawClient?: LarkChannel['rawClient']
   botIdentity?: LarkChannel['botIdentity']
@@ -50,6 +64,9 @@ export interface BridgeOptions {
 const ATTACHMENT_NOTICE = 'This version of Deepseek Tag can read text only; attachments in this message were not included.'
 const EMPTY_RESPONSE = 'The agent finished without a text response.'
 const FAILED_RESPONSE = 'I couldn\'t finish that request. Please try again or check the DeepSeek Harness logs.'
+// Feishu's published emoji_type vocabulary has no whale; use the channel
+// reference implementation's native working indicator instead.
+const WORKING_REACTION = 'Typing'
 
 /** Stable error text for logs regardless of the thrown shape. */
 function messageOf(error: unknown): string {
@@ -229,25 +246,51 @@ export class DeepseekTagBridge {
       await this.safeReply(message, ATTACHMENT_NOTICE)
       return
     }
+    const reaction = this.addWorkingReaction(message)
     let handle: AgentHandle | undefined
+    let progress: ManagedRunCard | undefined
+    let stopProjection: (() => void) | undefined
+    let state: RunCardState = initialRunCardState
     try {
       handle = await this.activateConversation(message, history)
       const session = handle.agent.session
       const startSeq = session.events.length
+      progress = await this.openProgressCard(message)
+      if (progress !== undefined) {
+        stopProjection = handle.agent.ctx.on('session/event', (subject, event) => {
+          if (subject !== session || event.seq < startSeq) return
+          state = reduceRunCardState(state, event)
+          progress?.update(state)
+        })
+      }
       handle.agent.followup(createUserMessage({
         content: [{ type: 'text', text: content }],
         source: { kind: 'user' },
       }))
       await handle.agent.whenIdle()
       const result = finalTurnResult(session.events.slice(startSeq))
-      await this.safeReply(
-        message,
-        result.kind === 'reply' ? result.text : result.kind === 'empty' ? EMPTY_RESPONSE : FAILED_RESPONSE,
-      )
+      const text = result.kind === 'reply' ? result.text : result.kind === 'empty' ? EMPTY_RESPONSE : undefined
+      state = finalizeRunCardState(state, text, result.kind === 'failed')
+      if (progress !== undefined) {
+        await progress.finish(state)
+        if (!progress.healthy || runCardNeedsContinuation(state)) {
+          await this.safeReply(message, text ?? FAILED_RESPONSE)
+        }
+      } else {
+        await this.safeReply(message, text ?? FAILED_RESPONSE)
+      }
     } catch (error) {
       this.ctx.logger.error('[deepseek-tag] message delivery failed: %s', messageOf(error))
-      await this.safeReply(message, FAILED_RESPONSE)
+      state = finalizeRunCardState(state, undefined, true)
+      if (progress !== undefined) {
+        await progress.finish(state)
+        if (!progress.healthy) await this.safeReply(message, FAILED_RESPONSE)
+      } else {
+        await this.safeReply(message, FAILED_RESPONSE)
+      }
     } finally {
+      stopProjection?.()
+      await this.removeWorkingReaction(message, reaction)
       await handle?.dispose().catch(error => {
         this.ctx.logger.warn('[deepseek-tag] agent runtime disposal failed: %s', messageOf(error))
       })
@@ -312,5 +355,42 @@ export class DeepseekTagBridge {
     } catch (error) {
       this.ctx.logger.error('[deepseek-tag] reply failed: %s', messageOf(error))
     }
+  }
+
+  private async openProgressCard(message: NormalizedMessage): Promise<ManagedRunCard | undefined> {
+    const { createCard, send, updateCardById } = this.channel
+    if (createCard === undefined || send === undefined || updateCardById === undefined) return undefined
+    const managed: ManagedCardChannel = {
+      createCard: createCard.bind(this.channel),
+      send: send.bind(this.channel),
+      updateCardById: updateCardById.bind(this.channel),
+    }
+    try {
+      return await ManagedRunCard.open(managed, message, initialRunCardState, error => {
+        this.ctx.logger.warn('[deepseek-tag] progress card update failed: %s', messageOf(error))
+      })
+    } catch (error) {
+      this.ctx.logger.warn('[deepseek-tag] progress card unavailable; falling back to text: %s', messageOf(error))
+      return undefined
+    }
+  }
+
+  private addWorkingReaction(message: NormalizedMessage): Promise<string | undefined> {
+    if (this.channel.addReaction === undefined) return Promise.resolve(undefined)
+    return this.channel.addReaction(message.messageId, WORKING_REACTION).catch(error => {
+      this.ctx.logger.warn('[deepseek-tag] working reaction failed: %s', messageOf(error))
+      return undefined
+    })
+  }
+
+  private async removeWorkingReaction(
+    message: NormalizedMessage,
+    reaction: Promise<string | undefined>,
+  ): Promise<void> {
+    const reactionId = await reaction
+    if (reactionId === undefined || this.channel.removeReaction === undefined) return
+    await this.channel.removeReaction(message.messageId, reactionId).catch(error => {
+      this.ctx.logger.warn('[deepseek-tag] working reaction cleanup failed: %s', messageOf(error))
+    })
   }
 }

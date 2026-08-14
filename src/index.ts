@@ -26,6 +26,15 @@ export { ConversationQueue } from './conversation-queue.js'
 export { finalTurnResult } from './response.js'
 export type { TurnResult } from './response.js'
 export {
+  finalizeRunCardState,
+  initialRunCardState,
+  ManagedRunCard,
+  reduceRunCardState,
+  renderRunCard,
+  runCardNeedsContinuation,
+} from './run-card.js'
+export type { ManagedCardChannel, RunCardState, RunTool } from './run-card.js'
+export {
   renderInitialThreadContext,
   supportsHistory,
   TagHistoryAccess,

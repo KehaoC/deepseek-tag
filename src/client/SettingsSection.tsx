@@ -42,6 +42,16 @@ const PERMISSION_BUNDLE = [
     codes: 'im:chat:read + im:chat.members:read',
     label: 'permissionChatContext',
   },
+  {
+    capability: 'progressCards',
+    codes: 'cardkit:card:write',
+    label: 'permissionProgressCards',
+  },
+  {
+    capability: 'reactions',
+    codes: 'im:message.reactions:write_only',
+    label: 'permissionReactions',
+  },
 ] as const
 
 export interface TagSettingsInjected {

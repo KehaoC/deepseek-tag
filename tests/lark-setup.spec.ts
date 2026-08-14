@@ -84,8 +84,8 @@ describe('inspectLarkPermissions', () => {
     expect(view).toEqual({
       status: 'missing',
       grantedScopes: ['im:message'],
-      missingScopes: ['im:message.group_msg', 'im:chat:read', 'im:chat.members:read'],
-      capabilities: ['appInspection', 'messages', 'directMessages'],
+      missingScopes: ['im:message.group_msg', 'im:chat:read', 'im:chat.members:read', 'cardkit:card:write'],
+      capabilities: ['appInspection', 'messages', 'directMessages', 'reactions'],
     })
   })
 
@@ -102,6 +102,8 @@ describe('inspectLarkPermissions', () => {
               { scope: 'im:message.group_msg' },
               { scope: 'im:chat:read' },
               { scope: 'im:chat.members:read' },
+              { scope: 'cardkit:card:write' },
+              { scope: 'im:message.reactions:write_only' },
             ] } } }),
           },
         },
@@ -118,6 +120,8 @@ describe('inspectLarkPermissions', () => {
       'directMessages',
       'groupHistory',
       'chatContext',
+      'progressCards',
+      'reactions',
     ])
     expect(view.missingScopes).toEqual([])
   })

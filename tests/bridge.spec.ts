@@ -52,6 +52,8 @@ describe('Deepseek Tag bridge', () => {
   it('releases each live runtime and resumes the durable conversation', async () => {
     let handlers: Parameters<ChannelLike['on']>[0] | undefined
     const replies: string[] = []
+    const addReaction = vi.fn(async () => 'reaction_1')
+    const removeReaction = vi.fn(async () => undefined)
     const channel: ChannelLike = {
       on: vi.fn(next => {
         handlers = next
@@ -62,6 +64,8 @@ describe('Deepseek Tag bridge', () => {
       reply: vi.fn(async (_message, input) => {
         replies.push(input.markdown)
       }),
+      addReaction,
+      removeReaction,
     }
     const prompts: UserMessage[] = []
     let turn = 0
@@ -150,6 +154,9 @@ describe('Deepseek Tag bridge', () => {
       { type: 'text', text: 'second' },
     ])
     expect(replies).toEqual(['answer 1', 'answer 2'])
+    expect(addReaction).toHaveBeenCalledTimes(2)
+    expect(addReaction).toHaveBeenNthCalledWith(1, 'om_message', 'Typing')
+    expect(removeReaction).toHaveBeenCalledTimes(2)
 
     expect(handles).toHaveLength(2)
     expect(handles[0]?.dispose).toHaveBeenCalledOnce()
@@ -159,6 +166,85 @@ describe('Deepseek Tag bridge', () => {
     expect(channel.disconnect).toHaveBeenCalledOnce()
     expect(handles[0]?.dispose).toHaveBeenCalledOnce()
     expect(handles[1]?.dispose).toHaveBeenCalledOnce()
+  })
+
+  it('projects the live session into one managed reply card', async () => {
+    let handlers: Parameters<ChannelLike['on']>[0] | undefined
+    const updateCardById = vi.fn<NonNullable<ChannelLike['updateCardById']>>(async () => undefined)
+    const reply = vi.fn(async () => undefined)
+    const channel: ChannelLike = {
+      on: vi.fn(next => { handlers = next; return vi.fn() }),
+      connect: vi.fn(async () => undefined),
+      disconnect: vi.fn(async () => undefined),
+      reply,
+      createCard: vi.fn(async () => ({ cardId: 'card_1' })),
+      send: vi.fn(async () => ({ messageId: 'outgoing_1' })),
+      updateCardById,
+    }
+    const events: SessionEvent[] = []
+    type Listener = (session: unknown, event: SessionEvent) => void
+    let listener: Listener | undefined
+    const session = { events }
+    const handle = {
+      agent: {
+        session,
+        ctx: { on: vi.fn((_name: string, next: Listener) => { listener = next; return vi.fn() }) },
+        followup: vi.fn(),
+        async whenIdle() {
+          const emitted: SessionEvent[] = [
+            {
+              type: 'assistant/chunk', seq: 0, time: 0,
+              data: { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: 'Streaming answer' } },
+            },
+            {
+              type: 'tool/call', seq: 1, time: 1,
+              data: { turn: 1, step: 1, callId: 'call_1' as never, name: 'read_file', arguments: '{}' },
+            },
+            {
+              type: 'assistant/message', seq: 2, time: 2,
+              data: {
+                turn: 1, step: 1,
+                message: createAssistantMessage({
+                  content: [{ type: 'text', text: 'Streaming answer' }],
+                  source: { provider: 'test', model: 'test' },
+                }),
+              },
+            },
+            { type: 'turn/end', seq: 3, time: 3, data: { turn: 1, reason: { kind: 'completed' } } },
+          ]
+          for (const next of emitted) {
+            events.push(next)
+            listener?.(session, next)
+          }
+        },
+      },
+      dispose: vi.fn(async () => undefined),
+    } as unknown as AgentHandle
+    const ctx = {
+      agents: { create: vi.fn(async () => handle), resume: vi.fn() },
+      agentDefaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      get: vi.fn(() => ({ list: vi.fn(async () => []) })),
+    } as unknown as Context
+    const bridge = new DeepseekTagBridge(ctx, {
+      config: resolveConfig({ enabled: true, appId: 'cli_test' }),
+      appSecret: 'secret',
+      createChannel: () => channel,
+    })
+
+    await bridge.start()
+    await handlers?.message?.(message())
+
+    expect(channel.createCard).toHaveBeenCalledOnce()
+    expect(channel.send).toHaveBeenCalledWith('oc_chat', { cardId: 'card_1' }, {
+      replyTo: 'om_message', replyInThread: false,
+    })
+    expect(updateCardById).toHaveBeenCalledOnce()
+    expect(updateCardById).toHaveBeenCalledWith('card_1', expect.any(Object), 1)
+    expect(JSON.stringify(updateCardById.mock.calls[0]?.[1])).toContain('Streaming answer')
+    expect(JSON.stringify(updateCardById.mock.calls[0]?.[1])).toContain('read_file')
+    expect(reply).not.toHaveBeenCalled()
+    await bridge.stop()
   })
 
   it('seeds an existing topic and installs chat history in the Agent scope', async () => {
