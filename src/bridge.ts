@@ -36,10 +36,6 @@ export interface BridgeOptions {
   createChannel?: (config: ResolvedConfig, appSecret: string) => ChannelLike
 }
 
-interface ConversationSession {
-  readonly handle: AgentHandle
-}
-
 const ATTACHMENT_NOTICE = 'This version of Deepseek Tag can read text only; attachments in this message were not included.'
 const EMPTY_RESPONSE = 'The agent finished without a text response.'
 const FAILED_RESPONSE = 'I couldn\'t finish that request. Please try again or check the DeepSeek Harness logs.'
@@ -77,15 +73,16 @@ export function productionChannel(config: ResolvedConfig, appSecret: string): La
 }
 
 /**
- * Own one channel connection and the Harness agents created for its
- * conversations. Message handlers wait for their turn to finish so the SDK's
- * per-chat queue keeps reply targets ordered.
+ * Own one channel connection and activate a fresh Harness runtime for each
+ * delivered turn. The durable session survives each activation; disposing the
+ * handle after idle releases the live agent and its session-scoped sandbox.
+ * Message handlers wait for their turn so the SDK's per-chat queue keeps reply
+ * targets ordered.
  */
 export class DeepseekTagBridge {
   private readonly channel: ChannelLike
   private readonly agentOptions: AgentOptions
   private readonly runtimeKey: string
-  private readonly conversations = new Map<string, Promise<ConversationSession>>()
   private readonly active = new Set<Promise<void>>()
   private readonly persistedSessionIds = new Set<string>()
   private unsubscribe: (() => void) | undefined
@@ -139,7 +136,7 @@ export class DeepseekTagBridge {
     }
   }
 
-  /** Stop intake, drain active deliveries, then dispose every owned agent. */
+  /** Stop intake and drain active deliveries; every delivery owns its handle. */
   async stop(): Promise<void> {
     if (this.stopped) return
     this.stopped = true
@@ -149,11 +146,6 @@ export class DeepseekTagBridge {
       this.ctx.logger.warn('[deepseek-tag] Lark disconnect failed: %s', messageOf(error))
     })
     await Promise.allSettled([...this.active])
-    const sessions = await Promise.allSettled([...this.conversations.values()])
-    this.conversations.clear()
-    await Promise.allSettled(sessions.flatMap(result =>
-      result.status === 'fulfilled' ? [result.value.handle.dispose()] : [],
-    ))
   }
 
   private track(task: Promise<void>): Promise<void> {
@@ -169,15 +161,16 @@ export class DeepseekTagBridge {
       await this.safeReply(message, ATTACHMENT_NOTICE)
       return
     }
+    let handle: AgentHandle | undefined
     try {
-      const conversation = await this.conversationFor(message)
-      const session = conversation.handle.agent.session
+      handle = await this.activateConversation(message)
+      const session = handle.agent.session
       const startSeq = session.events.length
-      conversation.handle.agent.followup(createUserMessage({
+      handle.agent.followup(createUserMessage({
         content: [{ type: 'text', text: content }],
         source: { kind: 'user' },
       }))
-      await conversation.handle.agent.whenIdle()
+      await handle.agent.whenIdle()
       const result = finalTurnResult(session.events.slice(startSeq))
       await this.safeReply(
         message,
@@ -186,6 +179,10 @@ export class DeepseekTagBridge {
     } catch (error) {
       this.ctx.logger.error('[deepseek-tag] message delivery failed: %s', messageOf(error))
       await this.safeReply(message, FAILED_RESPONSE)
+    } finally {
+      await handle?.dispose().catch(error => {
+        this.ctx.logger.warn('[deepseek-tag] agent runtime disposal failed: %s', messageOf(error))
+      })
     }
   }
 
@@ -199,17 +196,8 @@ export class DeepseekTagBridge {
     return `Lark group message from ${JSON.stringify(sender)}:\n${body}${attachment}`
   }
 
-  private conversationFor(message: NormalizedMessage): Promise<ConversationSession> {
+  private async activateConversation(message: NormalizedMessage): Promise<AgentHandle> {
     const scope = conversationScope(message)
-    const existing = this.conversations.get(scope)
-    if (existing !== undefined) return existing
-    const created = this.createConversation(scope)
-    this.conversations.set(scope, created)
-    void created.catch(() => { this.conversations.delete(scope) })
-    return created
-  }
-
-  private async createConversation(scope: string): Promise<ConversationSession> {
     const { config } = this.options
     const sessionId = SessionId(createSessionId(scope, this.runtimeKey))
     const options = { agentOptions: this.agentOptions }
@@ -221,7 +209,7 @@ export class DeepseekTagBridge {
         ...options,
       })
     this.persistedSessionIds.add(sessionId)
-    return { handle }
+    return handle
   }
 
   private async safeReply(message: NormalizedMessage, markdown: string): Promise<void> {

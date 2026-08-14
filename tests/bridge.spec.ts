@@ -26,7 +26,7 @@ function message(overrides: Partial<NormalizedMessage> = {}): NormalizedMessage 
 }
 
 describe('Deepseek Tag bridge', () => {
-  it('reuses a conversation agent and replies with each completed turn', async () => {
+  it('releases each live runtime and resumes the durable conversation', async () => {
     let handlers: Parameters<ChannelLike['on']>[0] | undefined
     const replies: string[] = []
     const channel: ChannelLike = {
@@ -40,51 +40,52 @@ describe('Deepseek Tag bridge', () => {
         replies.push(input.markdown)
       }),
     }
-    const events: SessionEvent[] = []
     const prompts: UserMessage[] = []
     let turn = 0
-    const handle = {
-      agent: {
-        session: { events },
-        followup(prompt: UserMessage) {
-          prompts.push(prompt)
+    const handles: AgentHandle[] = []
+    const makeHandle = (): AgentHandle => {
+      const events: SessionEvent[] = []
+      const handle = {
+        agent: {
+          session: { events },
+          followup(prompt: UserMessage) {
+            prompts.push(prompt)
+          },
+          async whenIdle() {
+            turn += 1
+            events.push({
+              type: 'assistant/message',
+              seq: events.length,
+              time: events.length,
+              data: {
+                turn,
+                step: 1,
+                message: createAssistantMessage({
+                  content: [{ type: 'text', text: `answer ${String(turn)}` }],
+                  source: { provider: 'test', model: 'test' },
+                }),
+              },
+            })
+            events.push({
+              type: 'turn/end',
+              seq: events.length,
+              time: events.length,
+              data: { turn, reason: { kind: 'completed' } },
+            })
+          },
         },
-        async whenIdle() {
-          turn += 1
-          events.push({
-            type: 'assistant/message',
-            seq: events.length,
-            time: events.length,
-            data: {
-              turn,
-              step: 1,
-              message: createAssistantMessage({
-                content: [{ type: 'text', text: `answer ${String(turn)}` }],
-                source: { provider: 'test', model: 'test' },
-              }),
-            },
-          })
-          events.push({
-            type: 'turn/end',
-            seq: events.length,
-            time: events.length,
-            data: { turn, reason: { kind: 'completed' } },
-          })
-        },
-      },
-      dispose: vi.fn(async () => undefined),
-    } as unknown as AgentHandle
-    const create = vi.fn(async () => handle)
-    const resume = vi.fn(async () => handle)
+        dispose: vi.fn(async () => undefined),
+      } as unknown as AgentHandle
+      handles.push(handle)
+      return handle
+    }
+    const create = vi.fn(async () => makeHandle())
+    const resume = vi.fn(async () => makeHandle())
     const logger = {
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
     }
-    const persistedId = createSessionId(
-      'dm:oc_chat',
-      ['feishu', 'cli_test', '', 'deepseek-official', 'deepseek-v4-flash'].join('\0'),
-    )
     const ctx = {
       agents: { create, resume },
       agentDefaultModel: {
@@ -93,7 +94,7 @@ describe('Deepseek Tag bridge', () => {
       logger,
       get(service: string) {
         if (service !== 'sessionPersistence') return undefined
-        return { list: vi.fn(async () => [{ id: persistedId }]) }
+        return { list: vi.fn(async () => []) }
       },
     } as unknown as Context
     const bridge = new DeepseekTagBridge(ctx, {
@@ -106,7 +107,16 @@ describe('Deepseek Tag bridge', () => {
     await handlers?.message?.(message({ content: 'first' }))
     await handlers?.message?.(message({ messageId: 'om_second', content: 'second' }))
 
-    expect(create).not.toHaveBeenCalled()
+    const persistedId = createSessionId(
+      'dm:oc_chat',
+      ['feishu', 'cli_test', '', 'deepseek-official', 'deepseek-v4-flash'].join('\0'),
+    )
+    expect(create).toHaveBeenCalledOnce()
+    expect(create).toHaveBeenCalledWith({
+      sessionId: persistedId,
+      meta: { cwd: process.cwd() },
+      agentOptions: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+    })
     expect(resume).toHaveBeenCalledOnce()
     expect(resume).toHaveBeenCalledWith({
       resumeSessionId: persistedId,
@@ -118,8 +128,13 @@ describe('Deepseek Tag bridge', () => {
     ])
     expect(replies).toEqual(['answer 1', 'answer 2'])
 
+    expect(handles).toHaveLength(2)
+    expect(handles[0]?.dispose).toHaveBeenCalledOnce()
+    expect(handles[1]?.dispose).toHaveBeenCalledOnce()
+
     await bridge.stop()
     expect(channel.disconnect).toHaveBeenCalledOnce()
-    expect(handle.dispose).toHaveBeenCalledOnce()
+    expect(handles[0]?.dispose).toHaveBeenCalledOnce()
+    expect(handles[1]?.dispose).toHaveBeenCalledOnce()
   })
 })
