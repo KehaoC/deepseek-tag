@@ -7,6 +7,7 @@ describe('channel scope resolution', () => {
     provider: 'workspace-provider',
     model: 'workspace-model',
     cwd: '/workspace',
+    sandboxMode: 'workspace-write',
     requireMention: true,
     defaultInstructions: 'Workspace guidance.',
     groupScopes: [{
@@ -16,6 +17,7 @@ describe('channel scope resolution', () => {
       provider: 'scope-provider',
       model: 'scope-model',
       cwd: '/scope',
+      sandboxMode: 'read-only',
       responseMode: 'automatic',
     }],
   })
@@ -28,6 +30,7 @@ describe('channel scope resolution', () => {
       provider: 'scope-provider',
       model: 'scope-model',
       cwd: '/scope',
+      sandboxMode: 'read-only',
       requireMention: false,
     })
   })
@@ -39,6 +42,7 @@ describe('channel scope resolution', () => {
       provider: 'workspace-provider',
       model: 'workspace-model',
       cwd: '/workspace',
+      sandboxMode: 'workspace-write',
       requireMention: true,
     })
   })
@@ -52,6 +56,7 @@ describe('channel scope resolution', () => {
       provider: 'workspace-provider',
       model: 'workspace-model',
       cwd: '/workspace',
+      sandboxMode: 'workspace-write',
       requireMention: false,
     })
   })

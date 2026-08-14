@@ -164,7 +164,7 @@ export function TagSettingsSection(props: TagSettingsProps) {
       setSelectedScopeIndex(existingIndex)
       return
     }
-    patch({ groupScopes: [...form.groupScopes, { chatId, name, enabled: true, instructions: '', provider: '', model: '', cwd: '', responseMode: 'inherit' }] })
+    patch({ groupScopes: [...form.groupScopes, { chatId, name, enabled: true, instructions: '', provider: '', model: '', cwd: '', sandboxMode: 'inherit', responseMode: 'inherit' }] })
     setSelectedScopeIndex(form.groupScopes.length)
   }
 
@@ -281,6 +281,8 @@ export function TagSettingsSection(props: TagSettingsProps) {
 
         <div className="dst-field"><label htmlFor="dst-default-instructions">{t('defaultInstructions')}</label><textarea id="dst-default-instructions" className="dst-textarea" value={form.defaultInstructions} disabled={!snapshot.writable} onChange={event => { patch({ defaultInstructions: event.target.value }) }} /></div>
 
+        <div className="dst-row"><label htmlFor="dst-sandbox-mode">{t('sandboxMode')}</label><select id="dst-sandbox-mode" className="dst-select" value={form.sandboxMode} disabled={!snapshot.writable} onChange={event => { patch({ sandboxMode: event.target.value === 'read-only' ? 'read-only' : 'workspace-write' }) }}><option value="workspace-write">{t('sandboxWorkspaceWrite')}</option><option value="read-only">{t('sandboxReadOnly')}</option></select></div>
+
         <div className="dst-row">
           <label htmlFor="dst-model">{t('modelSelection')}</label>
           <select id="dst-model" className="dst-select" value={currentRoute} disabled={!snapshot.writable || models.loading} onChange={event => { if (event.target.value === '') patch({ provider: '', model: '' }); else { const [provider, model] = JSON.parse(event.target.value) as [string, string]; patch({ provider, model }) } }}>
@@ -334,8 +336,9 @@ export function TagSettingsSection(props: TagSettingsProps) {
                   <div className="dst-row"><span>{t('scopeResponse')}</span><select className="dst-select" value={group.responseMode ?? 'inherit'} disabled={!snapshot.writable} onChange={event => { const value = event.target.value; patchGroupScope(index, { responseMode: value === 'mention' || value === 'automatic' ? value : 'inherit' }) }}><option value="inherit">{t('scopeResponseInherit')}</option><option value="mention">{t('scopeResponseMention')}</option><option value="automatic">{t('scopeResponseAutomatic')}</option></select></div>
                   <div className="dst-field"><label>{t('scopeInstructions')}</label><textarea className="dst-textarea" value={group.instructions ?? ''} disabled={!snapshot.writable} onChange={event => { patchGroupScope(index, { instructions: event.target.value }) }} /></div>
                   <div className="dst-row"><span>{t('scopeModel')}</span>{routeSelect(group.provider ?? '', group.model ?? '', t('inheritWorkspace'), (provider, model) => { patchGroupScope(index, { provider, model }) })}</div>
+                  <div className="dst-row"><span>{t('sandboxMode')}</span><select className="dst-select" value={group.sandboxMode ?? 'inherit'} disabled={!snapshot.writable} onChange={event => { const value = event.target.value; patchGroupScope(index, { sandboxMode: value === 'read-only' || value === 'workspace-write' ? value : 'inherit' }) }}><option value="inherit">{t('inheritWorkspace')}</option><option value="workspace-write">{t('sandboxWorkspaceWrite')}</option><option value="read-only">{t('sandboxReadOnly')}</option></select></div>
                   <div className="dst-row"><div className="dst-field"><span>{t('scopeWorkspace')}</span><span className="dst-hint dst-path">{group.cwd || t('inheritWorkspace')}</span></div><div className="dst-inline-actions"><button className="dst-button dst-button--secondary" type="button" disabled={!snapshot.writable} onClick={() => { void chooseDirectory(path => { patchGroupScope(index, { cwd: path }) }) }}>{t('chooseFolder')}</button>{group.cwd ? <button className="dst-link-button" type="button" onClick={() => { patchGroupScope(index, { cwd: '' }) }}>{t('useDefault')}</button> : null}</div></div>
-                  <div className="dst-effective"><strong>{t('effectiveTitle')}</strong><dl><div><dt>{t('effectiveModel')}</dt><dd>{effective.provider && effective.model ? `${effective.provider} / ${effective.model}` : t('modelDefault')}</dd></div><div><dt>{t('effectiveWorkspace')}</dt><dd>{effective.cwd || t('cwdDefault')}</dd></div><div><dt>{t('effectiveResponse')}</dt><dd>{effective.requireMention ? t('scopeResponseMention') : t('scopeResponseAutomatic')}</dd></div></dl></div>
+                  <div className="dst-effective"><strong>{t('effectiveTitle')}</strong><dl><div><dt>{t('effectiveModel')}</dt><dd>{effective.provider && effective.model ? `${effective.provider} / ${effective.model}` : t('modelDefault')}</dd></div><div><dt>{t('effectiveWorkspace')}</dt><dd>{effective.cwd || t('cwdDefault')}</dd></div><div><dt>{t('sandboxMode')}</dt><dd>{effective.sandboxMode === 'read-only' ? t('sandboxReadOnly') : t('sandboxWorkspaceWrite')}</dd></div><div><dt>{t('effectiveResponse')}</dt><dd>{effective.requireMention ? t('scopeResponseMention') : t('scopeResponseAutomatic')}</dd></div></dl></div>
                   <div className="dst-editor-actions"><button className="dst-link-button dst-link-button--danger" type="button" disabled={!snapshot.writable} onClick={() => { removeGroupScope(index) }}>{t('removeScope')}</button></div>
                 </div>
               </div>

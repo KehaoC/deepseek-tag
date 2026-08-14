@@ -26,7 +26,8 @@ describe('WebTagSettingsScope', () => {
   it('materializes and clones scope-first configuration', () => {
     const value = {
       defaultInstructions: 'Be precise.',
-      groupScopes: [{ chatId: 'oc_one', instructions: 'Channel guidance.' }],
+      sandboxMode: 'workspace-write' as const,
+      groupScopes: [{ chatId: 'oc_one', instructions: 'Channel guidance.', sandboxMode: 'read-only' as const }],
     }
     const form = formOf(value)
     expect(form).toMatchObject(value)

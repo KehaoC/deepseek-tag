@@ -12,8 +12,12 @@ const behaviorSchema = z.object({
   provider: z.string().min(1),
   model: z.string().min(1),
   cwd: z.string().min(1),
+  sandboxMode: z.enum(['read-only', 'workspace-write']),
   requireMention: z.boolean(),
 })
+
+/** Snapshots created before Deepseek Tag explicitly pinned official sandbox policy. */
+const preSandboxBehaviorSchema = behaviorSchema.omit({ sandboxMode: true })
 
 /** Read-only compatibility for snapshots written before Agent profiles were removed. */
 const legacyBehaviorSchema = z.object({
@@ -27,7 +31,7 @@ const legacyBehaviorSchema = z.object({
 })
 
 const snapshotSchema = z.object({
-  behavior: z.union([behaviorSchema, legacyBehaviorSchema]),
+  behavior: z.union([behaviorSchema, preSandboxBehaviorSchema, legacyBehaviorSchema]),
   createdAt: z.string(),
 })
 
@@ -35,13 +39,17 @@ export type ThreadAgentBehavior = z.infer<typeof behaviorSchema>
 export type ThreadConfigSnapshot = z.infer<typeof snapshotSchema>
 
 function currentBehavior(value: ThreadConfigSnapshot['behavior']): ThreadAgentBehavior {
-  if ('scopeName' in value) return structuredClone(value)
+  if ('scopeName' in value) return {
+    ...structuredClone(value),
+    sandboxMode: 'sandboxMode' in value ? value.sandboxMode : 'workspace-write',
+  }
   return {
     scopeName: value.profileName,
     instructions: value.instructions,
     provider: value.provider,
     model: value.model,
     cwd: value.cwd,
+    sandboxMode: 'workspace-write',
     requireMention: value.requireMention,
   }
 }
@@ -72,6 +80,7 @@ export function materializeThreadBehavior(
     provider: behavior.provider || defaultModel.provider,
     model: behavior.model || defaultModel.model,
     cwd: behavior.cwd || processCwd,
+    sandboxMode: behavior.sandboxMode,
     requireMention: behavior.requireMention,
   }
 }

@@ -29,6 +29,7 @@ import {
   type ThreadAgentBehavior,
 } from './thread-config.js'
 import { finalTurnResult } from './response.js'
+import { applyThreadSandboxMode } from './sandbox-runtime.js'
 import {
   finalizeRunCardState,
   initialRunCardState,
@@ -140,7 +141,8 @@ export function productionChannel(config: ResolvedConfig, appSecret: string): La
 /**
  * Own one channel connection and activate a fresh Harness runtime for each
  * delivered turn. The durable session survives each activation; disposing the
- * handle after idle releases the live agent and its session-scoped sandbox.
+ * handle after idle releases the live Agent scope. The composed Harness
+ * execution provider owns whether compute is same-world or remotely isolated.
  * Message handlers wait for their turn so the SDK's per-chat queue keeps reply
  * targets ordered.
  */
@@ -359,6 +361,7 @@ export class DeepseekTagBridge {
         meta: { cwd: behavior.cwd },
         ...options,
       })
+    applyThreadSandboxMode(handle.agent.session, behavior.sandboxMode)
     this.persistedSessionIds.add(sessionId)
     return handle
   }

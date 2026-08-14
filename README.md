@@ -11,7 +11,8 @@ The current release provides the phase-one conversation path and live task UX:
 - one Harness session per DM, group topic, or reply tree;
 - raw-message topic-id recovery when Feishu omits `thread_id` from a root event;
 - durable session resume across turns and Web runtime restarts;
-- one live Agent/sandbox activation per request, released after the turn becomes idle;
+- one live Agent scope per request, released after the turn becomes idle;
+- official Harness sandbox policy pinned per thread, with Workspace and group-level read-only/workspace-write selection;
 - first-engagement context from up to 50 prior messages in an existing topic;
 - an Agent history tool confined to the current chat, with access to channel
   messages and explicitly selected sibling topics;
@@ -35,6 +36,7 @@ dependency-ordered phase-two ledger live in
 - Node.js 22.19 or newer;
 - a working DeepSeek Harness Web profile;
 - a Harness session-persistence backend (included by the standard Web profile);
+- the official sandbox-aware shell and filesystem providers included by the standard Harness base bundle;
 - permission to create or update a Feishu/Lark custom app. Existing App ID and
   App Secret credentials remain supported as a manual fallback.
 
@@ -135,6 +137,7 @@ profile's `cordis.patch.yml`:
       workspaceMemoryGroups: []
       requireMention: true
       cwd: ''
+      sandboxMode: workspace-write
       provider: ''
       model: ''
       defaultInstructions: ''
@@ -153,6 +156,12 @@ and an exact `chat_id` scope can append instructions or override the model,
 working directory, and response behavior. There is no separate logical-Agent
 profile layer. Per-scope Connections are intentionally absent until the
 Harness runtime can enforce them at each external operation.
+
+The Workspace sandbox setting is inherited by every group unless that group
+selects a narrower policy. A new thread freezes the resolved mode into the
+official Harness `sandbox/mode` session event. Deepseek Tag refuses to start
+against bare local shell or filesystem providers that do not advertise sandbox
+enforcement.
 
 Validate the composed profile before starting it:
 
@@ -179,6 +188,10 @@ dsh --profile web
   current chat before its content reaches the Agent.
 - Private groups cannot modify workspace memory; DMs cannot read group or
   workspace memory.
+- The active shell and filesystem providers must both be sandbox-aware. The
+  standard Harness base bundle supplies `sandbox-local`, `sandbox-policy`,
+  `bash-sandbox`/`pwsh-sandbox`, and `fs-sandbox`; missing enforcement fails
+  closed before the Lark bridge connects.
 - Lark SDK message deduplication, reconnect handling, outbound validation, and
   SSRF defenses remain enabled. Deepseek Tag serializes one topic/reply tree at
   a time while allowing independent topics in the same group to run concurrently.
@@ -187,8 +200,11 @@ Deepseek Tag uses the sandbox/runtime composed by the active Harness profile.
 Each request owns a fresh live Agent handle and disposes it after idle. A cloud
 profile may provide a truly ephemeral isolated runtime; the default local
 profile provides Harness filesystem/command policy around the configured
-working directory, not a microVM. Files in that local working directory are
-therefore durable workspace files and are not represented as ephemeral.
+working directory, not a microVM. The local policy governs file effects, not
+network egress. Files in that local working directory are therefore durable
+workspace files and are not represented as ephemeral. A remote execution-world
+provider remains a profile-level Harness composition choice and must expose an
+equivalent enforceable policy before Deepseek Tag can accept it.
 
 ## Development
 

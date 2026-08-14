@@ -9,6 +9,7 @@ describe('Deepseek Tag config', () => {
       tenant: 'feishu',
       dmMode: 'open',
       requireMention: true,
+      sandboxMode: 'workspace-write',
     })
   })
 

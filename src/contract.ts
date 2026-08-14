@@ -12,6 +12,12 @@ export type LarkSetupStatus = 'waiting' | 'ready' | 'completed' | 'failed'
 /** Whether a group requires an initial bot mention or responds automatically. */
 export type GroupResponseMode = 'inherit' | 'mention' | 'automatic'
 
+/** Confined Harness file-effect modes Deepseek Tag permits. */
+export type TagSandboxMode = 'read-only' | 'workspace-write'
+
+/** A channel either inherits the workspace sandbox or narrows/sets it explicitly. */
+export type GroupSandboxMode = 'inherit' | TagSandboxMode
+
 /** One exact Lark group scope beneath the app installation. */
 export interface LarkGroupScopeSettings {
   /** Lark group chat_id. */
@@ -27,6 +33,8 @@ export interface LarkGroupScopeSettings {
   model?: string
   /** Optional channel-level workspace template override. */
   cwd?: string
+  /** Harness sandbox policy frozen when a new thread starts. */
+  sandboxMode?: GroupSandboxMode
   /** Per-channel response behavior. */
   responseMode?: GroupResponseMode
 }
@@ -95,6 +103,8 @@ export interface DeepseekTagSettings {
   requireMention?: boolean
   /** Agent working directory. Empty uses the Harness process directory. */
   cwd?: string
+  /** Harness sandbox policy used for new sessions. */
+  sandboxMode?: TagSandboxMode
   /** Optional Harness LLM provider override. */
   provider?: string
   /** Optional Harness model override. */

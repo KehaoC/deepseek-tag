@@ -32,6 +32,7 @@ const first = {
   provider: 'provider-one',
   model: 'model-one',
   cwd: '/one',
+  sandboxMode: 'workspace-write' as const,
   requireMention: true,
 }
 
@@ -65,7 +66,27 @@ describe('thread scope configuration', () => {
       provider: 'provider-one',
       model: 'model-one',
       cwd: '/one',
+      sandboxMode: 'workspace-write',
       requireMention: true,
+    })
+  })
+
+  it('upgrades a pre-sandbox scope snapshot to the confined workspace default', async () => {
+    const previousTable = table()
+    await previousTable.put('previous', {
+      behavior: {
+        scopeName: 'Engineering',
+        instructions: 'Previous instructions.',
+        provider: 'provider-one',
+        model: 'model-one',
+        cwd: '/one',
+        requireMention: true,
+      },
+      createdAt: '2026-08-13T00:00:00.000Z',
+    })
+    const store = new TagThreadConfigStore(previousTable)
+    await expect(store.resolve('previous', { ...first, sandboxMode: 'read-only' }, true)).resolves.toMatchObject({
+      sandboxMode: 'workspace-write',
     })
   })
 
@@ -78,6 +99,7 @@ describe('thread scope configuration', () => {
       provider: '',
       model: '',
       cwd: '',
+      sandboxMode: 'workspace-write',
       requireMention: true,
     }, { provider: 'default-provider', model: 'default-model' }, '/runtime')).toMatchObject({
       provider: 'default-provider', model: 'default-model', cwd: '/runtime',

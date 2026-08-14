@@ -31,6 +31,15 @@ function message(overrides: Partial<NormalizedMessage> = {}): NormalizedMessage 
   }
 }
 
+function fakeSession(events: SessionEvent[]) {
+  return {
+    events,
+    append(type: SessionEvent['type'], data: unknown) {
+      events.push({ type, seq: events.length, time: events.length, data } as SessionEvent)
+    },
+  }
+}
+
 describe('Deepseek Tag bridge', () => {
   it('requires the first group mention and admits later thread continuations', () => {
     const group = message({ chatType: 'group', mentionedBot: false })
@@ -74,7 +83,7 @@ describe('Deepseek Tag bridge', () => {
       const events: SessionEvent[] = []
       const handle = {
         agent: {
-          session: { events },
+          session: fakeSession(events),
           followup(prompt: UserMessage) {
             prompts.push(prompt)
           },
@@ -159,6 +168,12 @@ describe('Deepseek Tag bridge', () => {
     expect(removeReaction).toHaveBeenCalledTimes(2)
 
     expect(handles).toHaveLength(2)
+    expect(handles[0]?.agent.session.events[0]).toMatchObject({
+      type: 'sandbox/mode', data: { mode: 'workspace-write' },
+    })
+    expect(handles[1]?.agent.session.events[0]).toMatchObject({
+      type: 'sandbox/mode', data: { mode: 'workspace-write' },
+    })
     expect(handles[0]?.dispose).toHaveBeenCalledOnce()
     expect(handles[1]?.dispose).toHaveBeenCalledOnce()
 
@@ -184,7 +199,7 @@ describe('Deepseek Tag bridge', () => {
     const events: SessionEvent[] = []
     type Listener = (session: unknown, event: SessionEvent) => void
     let listener: Listener | undefined
-    const session = { events }
+    const session = fakeSession(events)
     const handle = {
       agent: {
         session,
@@ -282,7 +297,7 @@ describe('Deepseek Tag bridge', () => {
     const events: SessionEvent[] = []
     const handle = {
       agent: {
-        session: { events },
+        session: fakeSession(events),
         followup(prompt: UserMessage) { prompts.push(prompt) },
         async whenIdle() {
           events.push({
@@ -326,7 +341,7 @@ describe('Deepseek Tag bridge', () => {
         model: 'workspace-model',
         cwd: '/workspace',
         groupScopes: [
-          { chatId: 'oc_chat', name: 'Summaries', instructions: 'Channel guidance.', provider: 'scoped-provider', model: 'scoped-model', cwd: '/scoped-workspace' },
+          { chatId: 'oc_chat', name: 'Summaries', instructions: 'Channel guidance.', provider: 'scoped-provider', model: 'scoped-model', cwd: '/scoped-workspace', sandboxMode: 'read-only' },
           { chatId: 'oc_disabled', enabled: false },
         ],
       }),
@@ -357,6 +372,7 @@ describe('Deepseek Tag bridge', () => {
       agentOptions: { provider: 'scoped-provider', model: 'scoped-model' },
       meta: { cwd: '/scoped-workspace' },
     }))
+    expect(events[0]).toMatchObject({ type: 'sandbox/mode', data: { mode: 'read-only' } })
     expect(sections).toContainEqual(expect.objectContaining({
       name: 'deepseek-tag:scope-instructions',
       text: expect.stringContaining('Workspace guidance. Keep {\u200B{model}} literal.\n\nChannel guidance.'),

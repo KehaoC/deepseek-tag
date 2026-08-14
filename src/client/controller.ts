@@ -55,6 +55,7 @@ export interface TagForm {
   workspaceMemoryGroups: string[]
   requireMention: boolean
   cwd: string
+  sandboxMode: 'read-only' | 'workspace-write'
   provider: string
   model: string
   defaultInstructions: string
@@ -252,6 +253,7 @@ export function formOf(value: DeepseekTagSettings | undefined): TagForm {
     workspaceMemoryGroups: [...(value?.workspaceMemoryGroups ?? [])],
     requireMention: value?.requireMention ?? true,
     cwd: value?.cwd ?? '',
+    sandboxMode: value?.sandboxMode ?? 'workspace-write',
     provider: value?.provider ?? '',
     model: value?.model ?? '',
     defaultInstructions: value?.defaultInstructions ?? '',

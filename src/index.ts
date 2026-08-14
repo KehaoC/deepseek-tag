@@ -7,6 +7,9 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-credentials'
+import type {} from '@deepseek-ai/dsh-fs'
+import type {} from '@deepseek-ai/dsh-sandbox-policy'
+import type {} from '@deepseek-ai/dsh-shell'
 import type {} from '@deepseek-ai/dsh-storage-domain'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-tools'
@@ -18,6 +21,7 @@ import { TagMemoryStore } from './memory.js'
 import { BridgeSupervisor, reportReconfigureFailure } from './supervisor.js'
 import { installWebSettingsEndpoint } from './web-settings.js'
 import { TagThreadConfigStore } from './thread-config.js'
+import { assertOfficialSandboxRuntime } from './sandbox-runtime.js'
 
 export { resolveChannelBehavior } from './channel-scope.js'
 export type { ChannelScopeTarget, ResolvedChannelBehavior } from './channel-scope.js'
@@ -28,6 +32,7 @@ export {
   threadConfigDomainSpec,
 } from './thread-config.js'
 export type { ThreadAgentBehavior, ThreadConfigSnapshot } from './thread-config.js'
+export { applyThreadSandboxMode, assertOfficialSandboxRuntime } from './sandbox-runtime.js'
 
 export { admitsConversationMessage, DeepseekTagBridge, productionChannel, resolveTopicThread } from './bridge.js'
 export type { BridgeOptions, ChannelLike } from './bridge.js'
@@ -65,7 +70,10 @@ export const name = 'deepseek-tag'
 export const inject = [
   'agentDefaultModel',
   'agents',
+  'fs',
+  'sandboxPolicy',
   'sessionPersistence',
+  'shell',
   'settings',
   'storageDomain',
   'systemPrompt',
@@ -74,6 +82,7 @@ export const inject = [
 
 /** Activate the composition layer and optional live Web UI settings layer. */
 export async function apply(ctx: Context, config: ConfigShape = {}): Promise<void> {
+  assertOfficialSandboxRuntime(ctx)
   const memory = await TagMemoryStore.open(ctx)
   ctx.effect(() => () => memory.close(), 'deepseek-tag.memory')
   const threadConfig = await TagThreadConfigStore.open(ctx)

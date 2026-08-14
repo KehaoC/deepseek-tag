@@ -17,6 +17,7 @@ flowchart LR
   P --> C["Conversation coordinator"]
   C --> A["Harness AgentRegistry"]
   A --> R["Configured local or cloud runtime"]
+  A --> SB["Official per-session sandbox policy"]
   A --> S["Session persistence"]
   A --> O["Progress and result projection"]
   O --> T
@@ -45,6 +46,9 @@ The stable boundaries are:
 - **Runtime:** Harness `AgentRegistry` is the execution boundary. Local versus
   cloud execution remains a Harness composition choice (sandbox, tools, model,
   and workspace plugins), rather than a second agent loop inside Deepseek Tag.
+  Deepseek Tag requires sandbox-aware shell and filesystem providers, resolves
+  `read-only` or `workspace-write` from workspace → channel, and records that
+  mode on the Harness session before the first tool operation.
 - **Control plane:** non-secret configuration belongs to the `deepseek-tag`
   settings namespace and crosses the Web boundary through a same-origin,
   loopback-only plugin route because Harness does not expose third-party
@@ -188,11 +192,36 @@ between place-bound behavior and service-account access:
   never stored in scopes, sessions, prompts, cards, or browser
   responses; disabling a scope takes effect before the next Agent creation,
   and a future connection revocation must take effect before the next external
-  operation.
+  operation. Official local sandbox enforcement covers file effects only;
+  network default-deny remains a separate Agent Proxy requirement.
 - **Acceptance:** two Lark groups can resolve different effective
   instructions, models, workspaces, and GitHub repository grants; a sibling
   group and a DM cannot observe or invoke an unbound grant; once live
   authorization exists, the settings UI displays the exact effective access.
+
+### Official sandbox policy integration
+
+- **Observed Claude Tag behavior:** every channel thread runs in an ephemeral
+  sandbox. The thread is durable while idle compute is released, and rebuilding
+  the sandbox retains conversation state but not files that were never pushed
+  or posted. Sandbox egress reaches only Agent Proxy-approved destinations.
+- **Lark equivalent:** every Deepseek Tag thread has one durable Harness
+  session and a fresh live Agent scope per turn. Workspace sandbox policy
+  inherits into groups, a channel may select `read-only` or
+  `workspace-write`, and the resolved mode plus immutable session `cwd` are
+  frozen in the thread snapshot and applied through Harness `sandbox/mode`.
+- **Dependencies:** the standard Harness base composition's
+  `sandbox-local`, `sandbox-policy`, sandboxed shell executor, and
+  `fs-sandbox`; Agent/session creation and persistence; a future remote
+  execution-world provider for true per-thread ephemeral compute.
+- **Security:** Deepseek Tag fails closed before connecting to Lark when the
+  active shell or filesystem provider does not advertise sandbox enforcement.
+  Official local confinement governs file effects and deliberately does not
+  claim network isolation, credential isolation, or a microVM boundary.
+- **Acceptance:** Workspace and exact-channel policies resolve narrowest-first;
+  the chosen mode is recorded before the first tool call, survives resume,
+  pre-feature snapshots remain readable, and a bare local shell or filesystem
+  prevents plugin activation.
 
 The order column is dependency order, not a promise that unrelated rows must
 ship in one release. Every row is intended to land as a production-usable
@@ -221,13 +250,13 @@ commit with focused tests and migration-safe settings.
 | 19 | Channel watching | Event-driven watch rules with deduplication, rate limits, quiet hours, and explainable trigger state | Lark event subscriptions + jobs |
 | 20 | Pull-request subscriptions | Subscribe/unsubscribe from a thread, consume provider events, post state transitions and requested follow-ups | SCM connection + webhook/event worker |
 | 21 | Proactive follow-up and stalled-thread checks | Durable delayed checks, completion notifications, actor tagging, cancellation when the condition clears | Jobs + conversation state |
-| 22 | Ephemeral isolated sandboxes with durable thread state | **Lifecycle done:** idle disposal and durable resume. Per-scope runtime selection and cloud isolation remain; local Harness sandbox is policy confinement, not a microVM. | Harness sandbox/runtime composition |
+| 22 | Ephemeral isolated sandboxes with durable thread state | **Official sandbox policy connected:** Deepseek Tag requires sandbox-aware Harness shell/fs providers, resolves workspace/channel `read-only` or `workspace-write`, freezes it in the thread snapshot, and applies it through durable `sandbox/mode` before tools run. Idle disposal and durable resume are done. Local Harness confinement is still same-world file policy rather than one cloud sandbox per thread; remote per-thread compute remains. | Harness sandbox/runtime composition |
 | 23 | Default-deny network and Agent Proxy | Per-connection host allowlists, SSRF-safe egress, optional fixed proxy/egress, blocked-destination diagnostics | Sandbox network policy |
 | 24 | Organization/workspace/private-channel inheritance | **Behavior foundation done:** one paired Lark tenant maps installation defaults → exact Lark group, with thread snapshots and disabled-scope fail-closed behavior. A separate cross-tenant organization root is not represented. Scope-bound Access bundles remain intentionally unavailable until live operation-level authorization exists. | Scope/access resolver |
 | 25 | Member/guest/external-chat restrictions | Role and tenant checks before Agent creation; fail closed for externally shared chats unless allowed | Admission + directory integration |
 | 26 | Spend limits and threshold alerts | Organization and per-chat budgets, pre-turn refusal, 75/95% alerts, usage summaries | Token meter + durable usage policy |
 | 27 | Audit and traceability | Searchable task/routine/network/tool/setting audit; source message and external action correlation | Append-only audit projection |
-| 28 | Admin management for workspaces and versions | **Scope editor done:** Onboarding owns connection and workspace-default settings; the channel surface automatically discovers groups the bot has joined, retains a manual `chat_id` fallback, configures/disables exact channel scopes, and previews resolved behavior under one app-wide Agent identity. GitHub access summary, rollout versions, and health inventory remain. | Admin Web surfaces |
+| 28 | Admin management for workspaces and versions | **Scope editor done:** Onboarding owns connection, workspace defaults, and sandbox policy; the channel surface automatically discovers groups the bot has joined, configures/disables exact channel scopes without exposing raw ids, and previews resolved behavior under one app-wide Agent identity. GitHub access summary, rollout versions, and health inventory remain. | Admin Web surfaces |
 | 29 | Retention and deletion controls | Configurable retention for session, memory, routine, credential, and audit domains; disconnect purge workflow | Data lifecycle coordinator |
 
 ## Delivery sequence

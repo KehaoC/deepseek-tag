@@ -16,8 +16,9 @@ export interface ResolvedChannelBehavior {
   instructions: string
   provider: string
   model: string
-  cwd: string
-  requireMention: boolean
+    cwd: string
+    sandboxMode: 'read-only' | 'workspace-write'
+    requireMention: boolean
   /** Exact channel scope that contributed the narrowest behavior, when present. */
   groupScope?: LarkGroupScopeSettings
 }
@@ -37,12 +38,14 @@ export function resolveChannelBehavior(config: ResolvedConfig, target: ChannelSc
       provider: config.provider,
       model: config.model,
       cwd: config.cwd,
+      sandboxMode: config.sandboxMode,
       requireMention: false,
     }
   }
 
   const groupScope = config.groupScopes.find(scope => scope.chatId === target.chatId)
   const responseMode = groupScope?.responseMode ?? 'inherit'
+  const sandboxMode = groupScope?.sandboxMode ?? 'inherit'
   return {
     enabled: groupScope?.enabled ?? true,
     kind: 'group',
@@ -51,6 +54,7 @@ export function resolveChannelBehavior(config: ResolvedConfig, target: ChannelSc
     provider: groupScope?.provider || config.provider,
     model: groupScope?.model || config.model,
     cwd: groupScope?.cwd || config.cwd,
+    sandboxMode: sandboxMode === 'inherit' ? config.sandboxMode : sandboxMode,
     requireMention: responseMode === 'inherit' ? config.requireMention : responseMode === 'mention',
     ...(groupScope === undefined ? {} : { groupScope }),
   }

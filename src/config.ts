@@ -26,6 +26,7 @@ export interface ResolvedConfig {
   cwd: string
   provider: string
   model: string
+  sandboxMode: 'read-only' | 'workspace-write'
   defaultInstructions: string
   groupScopes: LarkGroupScopeSettings[]
 }
@@ -38,6 +39,7 @@ const groupScopeSchema = z.object({
   provider: z.string().default(''),
   model: z.string().default(''),
   cwd: z.string().default(''),
+  sandboxMode: z.union(['inherit', 'read-only', 'workspace-write']).default('inherit'),
   responseMode: z.union(['inherit', 'mention', 'automatic']).default('inherit'),
 })
 
@@ -53,6 +55,7 @@ export const Config: z<Config> = z.object({
   workspaceMemoryGroups: z.array(z.string()).default([]),
   requireMention: z.boolean().default(true),
   cwd: z.string().default(''),
+  sandboxMode: z.union(['read-only', 'workspace-write']).default('workspace-write'),
   provider: z.string().default(''),
   model: z.string().default(''),
   defaultInstructions: z.string().default(''),
