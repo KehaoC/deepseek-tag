@@ -19,5 +19,10 @@ describe('Deepseek Tag config', () => {
       appId: 'cli_test',
       dmMode: 'allowlist',
     })).toThrow(/dmAllowlist/)
+    expect(() => resolveConfig({
+      enabled: true,
+      appId: 'cli_test',
+      provider: 'deepseek-official',
+    })).toThrow(/provider and model/)
   })
 })

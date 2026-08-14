@@ -83,10 +83,13 @@ describe('Deepseek Tag bridge', () => {
     }
     const persistedId = createSessionId(
       'dm:oc_chat',
-      ['feishu', 'cli_test', '', '', ''].join('\0'),
+      ['feishu', 'cli_test', '', 'deepseek-official', 'deepseek-v4-flash'].join('\0'),
     )
     const ctx = {
       agents: { create, resume },
+      agentDefaultModel: {
+        currentSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-v4-flash' }),
+      },
       logger,
       get(service: string) {
         if (service !== 'sessionPersistence') return undefined
@@ -105,7 +108,10 @@ describe('Deepseek Tag bridge', () => {
 
     expect(create).not.toHaveBeenCalled()
     expect(resume).toHaveBeenCalledOnce()
-    expect(resume).toHaveBeenCalledWith({ resumeSessionId: persistedId })
+    expect(resume).toHaveBeenCalledWith({
+      resumeSessionId: persistedId,
+      agentOptions: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+    })
     expect(prompts.map(prompt => prompt.content[0])).toEqual([
       { type: 'text', text: 'first' },
       { type: 'text', text: 'second' },

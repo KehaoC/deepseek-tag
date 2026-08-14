@@ -5,6 +5,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent'
+import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-credentials'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { Config, resolveConfig, type Config as ConfigShape } from './config.js'
@@ -26,7 +27,7 @@ export type { RunningBridge, SupervisorOptions } from './supervisor.js'
 export const name = 'deepseek-tag'
 
 /** Core Harness capabilities required by the bridge and its configuration plane. */
-export const inject = ['agents', 'settings']
+export const inject = ['agentDefaultModel', 'agents', 'settings']
 
 /** Activate the composition layer and optional live Web UI settings layer. */
 export function apply(ctx: Context, config: ConfigShape = {}): void {

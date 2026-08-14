@@ -230,6 +230,7 @@ export function TagSettingsSection(props: TagSettingsProps) {
 
       {validation === 'appId' ? <p className="dst-error">{t('invalidAppId')}</p> : null}
       {validation === 'dmAllowlist' ? <p className="dst-error">{t('invalidAllowlist')}</p> : null}
+      {validation === 'modelRoute' ? <p className="dst-error">{t('invalidModelRoute')}</p> : null}
       {result === 'credential' ? <p className="dst-error">{t('credentialFailed')}</p> : null}
       {result === 'settings' && validation === undefined
         ? <p className="dst-error">{t('settingsFailed')}</p>

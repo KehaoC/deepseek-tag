@@ -2,6 +2,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { AgentHandle, AgentOptions } from '@deepseek-ai/dsh-agent'
+import type {} from '@deepseek-ai/dsh-agent-default-model'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-persistence'
@@ -82,6 +83,8 @@ export function productionChannel(config: ResolvedConfig, appSecret: string): La
  */
 export class DeepseekTagBridge {
   private readonly channel: ChannelLike
+  private readonly agentOptions: AgentOptions
+  private readonly runtimeKey: string
   private readonly conversations = new Map<string, Promise<ConversationSession>>()
   private readonly active = new Set<Promise<void>>()
   private readonly persistedSessionIds = new Set<string>()
@@ -90,6 +93,17 @@ export class DeepseekTagBridge {
 
   constructor(private readonly ctx: Context, private readonly options: BridgeOptions) {
     this.channel = (options.createChannel ?? productionChannel)(options.config, options.appSecret)
+    const selected = options.config.provider === ''
+      ? ctx.agentDefaultModel.currentSelection()
+      : { provider: options.config.provider, model: options.config.model }
+    this.agentOptions = { provider: selected.provider, model: selected.model }
+    this.runtimeKey = [
+      options.config.tenant,
+      options.config.appId,
+      options.config.cwd,
+      selected.provider,
+      selected.model,
+    ].join('\0')
   }
 
   /** Subscribe before connecting so no first message is missed. */
@@ -197,13 +211,8 @@ export class DeepseekTagBridge {
 
   private async createConversation(scope: string): Promise<ConversationSession> {
     const { config } = this.options
-    const agentOptions: AgentOptions = {
-      ...(config.provider === '' ? {} : { provider: config.provider }),
-      ...(config.model === '' ? {} : { model: config.model }),
-    }
-    const runtimeKey = [config.tenant, config.appId, config.cwd, config.provider, config.model].join('\0')
-    const sessionId = SessionId(createSessionId(scope, runtimeKey))
-    const options = Object.keys(agentOptions).length === 0 ? {} : { agentOptions }
+    const sessionId = SessionId(createSessionId(scope, this.runtimeKey))
+    const options = { agentOptions: this.agentOptions }
     const handle = this.persistedSessionIds.has(sessionId)
       ? await this.ctx.agents.resume({ resumeSessionId: sessionId, ...options })
       : await this.ctx.agents.create({

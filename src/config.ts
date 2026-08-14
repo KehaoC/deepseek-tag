@@ -51,5 +51,8 @@ export function resolveConfig(config: Config = {}): ResolvedConfig {
   if (resolved.dmMode === 'allowlist' && resolved.dmAllowlist.length === 0) {
     throw new Error('deepseek-tag: dmAllowlist must not be empty when dmMode is "allowlist"')
   }
+  if ((resolved.provider === '') !== (resolved.model === '')) {
+    throw new Error('deepseek-tag: provider and model overrides must be supplied together')
+  }
   return resolved
 }

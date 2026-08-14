@@ -146,9 +146,10 @@ export function formOf(value: DeepseekTagSettings | undefined): TagForm {
 }
 
 /** Client-side validation mirrors the host's constraints for immediate feedback. */
-export function validateForm(form: TagForm): 'appId' | 'dmAllowlist' | undefined {
+export function validateForm(form: TagForm): 'appId' | 'dmAllowlist' | 'modelRoute' | undefined {
   if (form.enabled && !/^cli_[A-Za-z0-9]+$/.test(form.appId)) return 'appId'
   if (form.dmMode === 'allowlist' && form.dmAllowlist.length === 0) return 'dmAllowlist'
+  if ((form.provider.trim() === '') !== (form.model.trim() === '')) return 'modelRoute'
   return undefined
 }
 
