@@ -1,9 +1,10 @@
 /** Build the Node host and the one-file Harness Web client plugin. */
 
 import { execFileSync } from 'node:child_process'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, rmSync } from 'node:fs'
 import { build } from 'esbuild'
 
+rmSync('lib', { recursive: true, force: true })
 mkdirSync('lib', { recursive: true })
 
 execFileSync('node_modules/.bin/tsc', ['-p', 'tsconfig.build.json'], { stdio: 'inherit' })

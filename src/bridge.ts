@@ -20,8 +20,8 @@ import {
   TagHistoryAccess,
 } from './history.js'
 import type { TagMemoryStore } from './memory.js'
-import { resolveAgentBehavior } from './agent-scope.js'
-import type { ResolvedAgentBehavior } from './agent-scope.js'
+import { resolveChannelBehavior } from './channel-scope.js'
+import type { ResolvedChannelBehavior } from './channel-scope.js'
 import {
   literalPromptText,
   materializeThreadBehavior,
@@ -238,7 +238,7 @@ export class DeepseekTagBridge {
     if (this.stopped) return
     const scope = conversationScope(message)
     const sessionExists = this.persistedSessionIds.has(this.sessionIdForScope(scope))
-    const currentBehavior = resolveAgentBehavior(this.options.config, message)
+    const currentBehavior = resolveChannelBehavior(this.options.config, message)
     if (!currentBehavior.enabled || !this.admits(message, currentBehavior, sessionExists)) return
     const behavior = await this.threadBehavior(scope, currentBehavior, sessionExists)
     const history = supportsHistory(this.channel)
@@ -339,7 +339,7 @@ export class DeepseekTagBridge {
               name: 'deepseek-tag:scope-instructions',
               order: 70,
               text: [
-                `You are operating as the ${JSON.stringify(behavior.profileName)} Agent profile for this Lark thread.`,
+                `You are operating in the ${JSON.stringify(behavior.scopeName)} Lark scope.`,
                 'Follow these administrator-configured standing instructions:',
                 literalPromptText(behavior.instructions),
               ].join('\n'),
@@ -366,7 +366,7 @@ export class DeepseekTagBridge {
   /** Require an initial group mention, but let an owned thread continue freely. */
   private admits(
     message: NormalizedMessage,
-    behavior: ResolvedAgentBehavior,
+    behavior: ResolvedChannelBehavior,
     sessionExists: boolean,
   ): boolean {
     return admitsConversationMessage(message, behavior.requireMention, sessionExists)
@@ -374,7 +374,7 @@ export class DeepseekTagBridge {
 
   private async threadBehavior(
     scope: string,
-    current: ResolvedAgentBehavior,
+    current: ResolvedChannelBehavior,
     sessionExists: boolean,
   ): Promise<ThreadAgentBehavior> {
     const materialized = materializeThreadBehavior(current, this.defaultAgentOptions, process.cwd())

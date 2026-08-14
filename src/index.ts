@@ -19,8 +19,8 @@ import { BridgeSupervisor, reportReconfigureFailure } from './supervisor.js'
 import { installWebSettingsEndpoint } from './web-settings.js'
 import { TagThreadConfigStore } from './thread-config.js'
 
-export { resolveAgentBehavior } from './agent-scope.js'
-export type { AgentScopeTarget, ResolvedAgentBehavior } from './agent-scope.js'
+export { resolveChannelBehavior } from './channel-scope.js'
+export type { ChannelScopeTarget, ResolvedChannelBehavior } from './channel-scope.js'
 export {
   literalPromptText,
   materializeThreadBehavior,

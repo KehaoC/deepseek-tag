@@ -9,23 +9,6 @@ export type DirectMessageMode = 'open' | 'allowlist' | 'disabled'
 export type LarkSetupKind = 'create' | 'authorize'
 export type LarkSetupStatus = 'waiting' | 'ready' | 'completed' | 'failed'
 
-/** Reusable logical Agent configuration. It never contains credential values. */
-export interface AgentProfileSettings {
-  /** Stable slug referenced by Lark scopes. */
-  id: string
-  /** Admin-facing display name. The Lark bot identity remains app-wide. */
-  name: string
-  /** Standing guidance installed for new thread sessions using this profile. */
-  instructions?: string
-  /** Optional Harness provider/model override; both fields must be set together. */
-  provider?: string
-  model?: string
-  /** Workspace template root. Empty follows the Harness process directory. */
-  cwd?: string
-  /** Capability bundles inherited by every Lark scope using this profile. */
-  accessBundleIds?: string[]
-}
-
 /** Whether a group requires an initial bot mention or responds automatically. */
 export type GroupResponseMode = 'inherit' | 'mention' | 'automatic'
 
@@ -37,17 +20,13 @@ export interface LarkGroupScopeSettings {
   name?: string
   /** Disabled scopes fail closed before an Agent is created. */
   enabled?: boolean
-  /** Empty inherits the installation's default profile. */
-  agentProfileId?: string
-  /** Channel-level instructions appended after profile instructions. */
+  /** Channel-level instructions appended after workspace instructions. */
   instructions?: string
   /** Optional channel-level model override; both fields must be set together. */
   provider?: string
   model?: string
   /** Optional channel-level workspace template override. */
   cwd?: string
-  /** Additional bundles combined with installation and profile grants. */
-  accessBundleIds?: string[]
   /** Per-channel response behavior. */
   responseMode?: GroupResponseMode
 }
@@ -120,15 +99,9 @@ export interface DeepseekTagSettings {
   provider?: string
   /** Optional Harness model override. */
   model?: string
-  /** Reusable logical Agents selectable by Lark group scopes. */
-  agentProfiles?: AgentProfileSettings[]
-  /** Default profile for groups without an exact scope override. */
-  defaultAgentProfileId?: string
-  /** Installation-level standing guidance prepended in every group session. */
+  /** Workspace-level standing guidance prepended in every group session. */
   defaultInstructions?: string
-  /** Installation-level bundles visible in every admitted group. */
-  defaultAccessBundleIds?: string[]
-  /** Exact per-group Agent and behavior bindings. */
+  /** Exact per-group channel-scope behavior overrides. */
   groupScopes?: LarkGroupScopeSettings[]
 }
 

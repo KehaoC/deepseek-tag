@@ -23,31 +23,24 @@ import { formOf, validateForm, WebTagSettingsScope } from '../src/client/control
 afterEach(() => { vi.unstubAllGlobals() })
 
 describe('WebTagSettingsScope', () => {
-  it('materializes and clones scoped Agent configuration', () => {
+  it('materializes and clones scope-first configuration', () => {
     const value = {
-      agentProfiles: [{ id: 'engineer', name: 'Engineer', accessBundleIds: ['github'] }],
-      defaultAgentProfileId: 'engineer',
       defaultInstructions: 'Be precise.',
-      defaultAccessBundleIds: ['baseline'],
-      groupScopes: [{ chatId: 'oc_one', accessBundleIds: ['write'] }],
+      groupScopes: [{ chatId: 'oc_one', instructions: 'Channel guidance.' }],
     }
     const form = formOf(value)
     expect(form).toMatchObject(value)
-    form.agentProfiles[0]?.accessBundleIds?.push('changed')
-    form.groupScopes[0]?.accessBundleIds?.push('changed')
-    expect(value.agentProfiles[0]?.accessBundleIds).toEqual(['github'])
-    expect(value.groupScopes[0]?.accessBundleIds).toEqual(['write'])
+    if (form.groupScopes[0] !== undefined) form.groupScopes[0].instructions = 'Changed'
+    expect(value.groupScopes[0]?.instructions).toBe('Channel guidance.')
   })
 
-  it('rejects incomplete Agent and group scope edits before save', () => {
+  it('rejects incomplete or duplicate channel scope edits before save', () => {
     const form = formOf(undefined)
-    form.agentProfiles = [{ id: 'Engineer', name: 'Engineer' }]
-    expect(validateForm(form)).toBe('agentScopes')
-    form.agentProfiles = [{ id: 'engineer', name: 'Engineer' }]
-    form.defaultAgentProfileId = 'engineer'
-    form.groupScopes = [{ chatId: 'oc_one', agentProfileId: 'missing' }]
-    expect(validateForm(form)).toBe('agentScopes')
-    form.groupScopes = [{ chatId: 'oc_one', agentProfileId: 'engineer' }]
+    form.groupScopes = [{ chatId: 'oc_one', provider: 'provider-only' }]
+    expect(validateForm(form)).toBe('channelScopes')
+    form.groupScopes = [{ chatId: 'oc_one' }, { chatId: 'oc_one' }]
+    expect(validateForm(form)).toBe('channelScopes')
+    form.groupScopes = [{ chatId: 'oc_one', provider: 'provider', model: 'model' }]
     expect(validateForm(form)).toBeUndefined()
   })
 

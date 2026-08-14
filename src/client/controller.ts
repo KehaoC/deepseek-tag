@@ -10,7 +10,6 @@ import {
 import {
   DEFAULT_APP_SECRET_REF,
   WEB_SETTINGS_PATH,
-  type AgentProfileSettings,
   type DeepseekTagSettings,
   type LarkChatDirectoryView,
   type LarkGroupScopeSettings,
@@ -58,10 +57,7 @@ export interface TagForm {
   cwd: string
   provider: string
   model: string
-  agentProfiles: AgentProfileSettings[]
-  defaultAgentProfileId: string
   defaultInstructions: string
-  defaultAccessBundleIds: string[]
   groupScopes: LarkGroupScopeSettings[]
 }
 
@@ -258,42 +254,21 @@ export function formOf(value: DeepseekTagSettings | undefined): TagForm {
     cwd: value?.cwd ?? '',
     provider: value?.provider ?? '',
     model: value?.model ?? '',
-    agentProfiles: (value?.agentProfiles ?? []).map(profile => ({
-      ...profile,
-      accessBundleIds: [...(profile.accessBundleIds ?? [])],
-    })),
-    defaultAgentProfileId: value?.defaultAgentProfileId ?? '',
     defaultInstructions: value?.defaultInstructions ?? '',
-    defaultAccessBundleIds: [...(value?.defaultAccessBundleIds ?? [])],
-    groupScopes: (value?.groupScopes ?? []).map(group => ({
-      ...group,
-      accessBundleIds: [...(group.accessBundleIds ?? [])],
-    })),
+    groupScopes: (value?.groupScopes ?? []).map(group => ({ ...group })),
   }
 }
 
 /** Client-side validation mirrors the host's constraints for immediate feedback. */
-export function validateForm(form: TagForm): 'appId' | 'dmAllowlist' | 'modelRoute' | 'agentScopes' | undefined {
+export function validateForm(form: TagForm): 'appId' | 'dmAllowlist' | 'modelRoute' | 'channelScopes' | undefined {
   if (form.enabled && !/^cli_[A-Za-z0-9]+$/.test(form.appId)) return 'appId'
   if (form.dmMode === 'allowlist' && form.dmAllowlist.length === 0) return 'dmAllowlist'
   if ((form.provider.trim() === '') !== (form.model.trim() === '')) return 'modelRoute'
-  const profileIds = new Set<string>()
-  for (const profile of form.agentProfiles) {
-    if (!/^[a-z][a-z0-9-]{0,62}$/.test(profile.id)
-      || profileIds.has(profile.id)
-      || profile.name.trim().length === 0
-      || ((profile.provider?.trim() ?? '') === '') !== ((profile.model?.trim() ?? '') === '')) return 'agentScopes'
-    profileIds.add(profile.id)
-  }
-  if (form.defaultAgentProfileId !== '' && !profileIds.has(form.defaultAgentProfileId)) return 'agentScopes'
   const chats = new Set<string>()
   for (const group of form.groupScopes) {
     if (group.chatId.trim() === ''
       || chats.has(group.chatId.trim())
-      || (group.agentProfileId !== undefined
-        && group.agentProfileId !== ''
-        && !profileIds.has(group.agentProfileId))
-      || ((group.provider?.trim() ?? '') === '') !== ((group.model?.trim() ?? '') === '')) return 'agentScopes'
+      || ((group.provider?.trim() ?? '') === '') !== ((group.model?.trim() ?? '') === '')) return 'channelScopes'
     chats.add(group.chatId.trim())
   }
   return undefined
@@ -562,15 +537,7 @@ export class TagSettingsController {
       dmAllowlist: [...form.dmAllowlist],
       groupAllowlist: [...form.groupAllowlist],
       workspaceMemoryGroups: [...form.workspaceMemoryGroups],
-      agentProfiles: form.agentProfiles.map(profile => ({
-        ...profile,
-        accessBundleIds: [...(profile.accessBundleIds ?? [])],
-      })),
-      defaultAccessBundleIds: [...form.defaultAccessBundleIds],
-      groupScopes: form.groupScopes.map(group => ({
-        ...group,
-        accessBundleIds: [...(group.accessBundleIds ?? [])],
-      })),
+      groupScopes: form.groupScopes.map(group => ({ ...group })),
     }
     try {
       const saved = await this.scope.replace(section, snapshot.revision)

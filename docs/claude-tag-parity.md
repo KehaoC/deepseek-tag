@@ -174,26 +174,25 @@ between place-bound behavior and service-account access:
   skills, plugins, and instructions at startup, while connection rules are
   enforced for every request. DMs use personal rather than organization
   connections.
-- **Lark equivalent:** one Feishu/Lark application is the transport identity;
-  the app installation is the root scope and an exact `chat_id` is the channel
+- **Lark equivalent:** one Feishu/Lark application is the transport and Agent
+  identity. Because one configured app connects to one tenant, installation
+  defaults are the Lark workspace scope and an exact `chat_id` is the channel
   scope. A topic/reply root is a session, not an admin credential-binding
-  scope. Until personal connections exist, DMs inherit no organization Access
-  bundle.
-- **Logical Agent profile:** an admin-facing reusable behavior template
-  containing instructions, model route, workspace template, and Access bundle
-  references. It does not change the app-wide bot name/avatar and is not a
-  credential container.
+  scope. There is no reusable logical-Agent layer. Scope-bound Connections are
+  not exposed until Harness can enforce them at every external operation;
+  until personal connections exist, DMs have no organization connection path.
 - **Dependencies:** Harness settings and domain storage, programmatic Agent
   setup/resume, the Harness credentials seam, the selected sandbox/runtime,
   and a GitHub App installation connection.
 - **Security:** admission happens before Agent creation; credential values are
-  never stored in profiles, scopes, sessions, prompts, cards, or browser
-  responses; DMs resolve an empty organization grant set; disabling a scope or
-  revoking a grant takes effect before the next external operation.
-- **Acceptance:** two Lark groups can resolve different effective Agents,
+  never stored in scopes, sessions, prompts, cards, or browser
+  responses; disabling a scope takes effect before the next Agent creation,
+  and a future connection revocation must take effect before the next external
+  operation.
+- **Acceptance:** two Lark groups can resolve different effective
   instructions, models, workspaces, and GitHub repository grants; a sibling
-  group and a DM cannot observe or invoke an unbound grant; the settings UI
-  displays the exact effective access before launch.
+  group and a DM cannot observe or invoke an unbound grant; once live
+  authorization exists, the settings UI displays the exact effective access.
 
 The order column is dependency order, not a promise that unrelated rows must
 ship in one release. Every row is intended to land as a production-usable
@@ -209,8 +208,8 @@ commit with focused tests and migration-safe settings.
 | 6 | Mention, continuation, auto-response, and mute rules | **Continuation done:** initial mention plus no re-mention inside owned threads. Per-chat automatic-response and mute settings remain. | Admission policy |
 | 7 | Files and images in prompts | Authenticated download, size/type limits, Harness attachment ingestion, cleanup, and explicit unsupported-type errors | Transport ↔ attachment service |
 | 8 | Rich final outputs | Lark files/cards plus Harness deliverables for documents, charts, hosted pages, and repository links | Result/artifact projection |
-| 9 | Model choice per thread/channel/DM | **Scope runtime done:** a group may inherit or override an Agent profile model and each thread freezes the materialized route. Per-thread commands and the scope editor remain. | Runtime policy + settings |
-| 10 | Per-channel customization/instructions | **Done for the current behavior surface:** installation, Agent profile, and exact-group instructions concatenate deterministically; response mode, model, and workspace resolve narrowest-first and persist in a thread snapshot. The Web UI creates reusable Agents, binds exact `chat_id` scopes, and previews effective behavior. | Scope configuration store |
+| 9 | Model choice per thread/channel/DM | **Scope runtime done:** a group inherits the workspace model or overrides it, and each thread freezes the materialized route. Per-thread commands remain. | Runtime policy + settings |
+| 10 | Per-channel customization/instructions | **Done for the current behavior surface:** onboarding workspace defaults and exact-channel instructions concatenate deterministically; response mode, model, and workspace resolve narrowest-first and persist in a thread snapshot. The Web UI keeps workspace defaults in Onboarding and edits exact `chat_id` scopes below it. | Scope configuration store |
 | 11 | Shared multi-user thread session | Preserve actor attribution, let any admitted member steer, serialize conflicting actions, record who changed what | Conversation coordinator + audit |
 | 12 | Channel memory | **Core done:** remember/list/update/forget tool, workspace sharing, private-chat isolation. Admin review/delete UI remains. | Scoped memory store + prompt section |
 | 13 | Dedicated agent identity | Separate application identity from invoking user; service-account credentials scoped to org/workspace/private chat equivalents | Identity and access bundles |
@@ -224,11 +223,11 @@ commit with focused tests and migration-safe settings.
 | 21 | Proactive follow-up and stalled-thread checks | Durable delayed checks, completion notifications, actor tagging, cancellation when the condition clears | Jobs + conversation state |
 | 22 | Ephemeral isolated sandboxes with durable thread state | **Lifecycle done:** idle disposal and durable resume. Per-scope runtime selection and cloud isolation remain; local Harness sandbox is policy confinement, not a microVM. | Harness sandbox/runtime composition |
 | 23 | Default-deny network and Agent Proxy | Per-connection host allowlists, SSRF-safe egress, optional fixed proxy/egress, blocked-destination diagnostics | Sandbox network policy |
-| 24 | Organization/workspace/private-channel inheritance | **Behavior foundation done:** app installation → Agent profile → exact Lark group resolution, thread snapshots, disabled-scope fail-closed behavior, and empty organization grants in DMs. GitHub bundles and live authorization remain. | Scope/access resolver |
+| 24 | Organization/workspace/private-channel inheritance | **Behavior foundation done:** one paired Lark tenant maps installation defaults → exact Lark group, with thread snapshots and disabled-scope fail-closed behavior. A separate cross-tenant organization root is not represented. Scope-bound Access bundles remain intentionally unavailable until live operation-level authorization exists. | Scope/access resolver |
 | 25 | Member/guest/external-chat restrictions | Role and tenant checks before Agent creation; fail closed for externally shared chats unless allowed | Admission + directory integration |
 | 26 | Spend limits and threshold alerts | Organization and per-chat budgets, pre-turn refusal, 75/95% alerts, usage summaries | Token meter + durable usage policy |
 | 27 | Audit and traceability | Searchable task/routine/network/tool/setting audit; source message and external action correlation | Append-only audit projection |
-| 28 | Admin management for workspaces and versions | **Agent/scope editor done:** completed onboarding collapses into a connection summary; scalable searchable full-width accordion views create/remove reusable logical Agents, automatically discover groups the bot has joined, retain a manual `chat_id` fallback, bind/disable exact Lark group scopes, and preview resolved behavior without changing the app-wide bot identity. GitHub access summary, rollout versions, and health inventory remain. | Admin Web surfaces |
+| 28 | Admin management for workspaces and versions | **Scope editor done:** Onboarding owns connection and workspace-default settings; the channel surface automatically discovers groups the bot has joined, retains a manual `chat_id` fallback, configures/disables exact channel scopes, and previews resolved behavior under one app-wide Agent identity. GitHub access summary, rollout versions, and health inventory remain. | Admin Web surfaces |
 | 29 | Retention and deletion controls | Configurable retention for session, memory, routine, credential, and audit domains; disconnect purge workflow | Data lifecycle coordinator |
 
 ## Delivery sequence

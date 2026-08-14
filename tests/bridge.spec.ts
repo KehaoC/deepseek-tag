@@ -321,18 +321,12 @@ describe('Deepseek Tag bridge', () => {
       config: resolveConfig({
         enabled: true,
         appId: 'cli_test',
-        defaultInstructions: 'Organization guidance.',
-        defaultAgentProfileId: 'summarizer',
-        agentProfiles: [{
-          id: 'summarizer',
-          name: 'Summarizer',
-          instructions: 'Keep {{model}} literal.',
-          provider: 'scoped-provider',
-          model: 'scoped-model',
-          cwd: '/scoped-workspace',
-        }],
+        defaultInstructions: 'Workspace guidance. Keep {{model}} literal.',
+        provider: 'workspace-provider',
+        model: 'workspace-model',
+        cwd: '/workspace',
         groupScopes: [
-          { chatId: 'oc_chat', instructions: 'Channel guidance.' },
+          { chatId: 'oc_chat', name: 'Summaries', instructions: 'Channel guidance.', provider: 'scoped-provider', model: 'scoped-model', cwd: '/scoped-workspace' },
           { chatId: 'oc_disabled', enabled: false },
         ],
       }),
@@ -365,7 +359,7 @@ describe('Deepseek Tag bridge', () => {
     }))
     expect(sections).toContainEqual(expect.objectContaining({
       name: 'deepseek-tag:scope-instructions',
-      text: expect.stringContaining('Organization guidance.\n\nKeep {\u200B{model}} literal.\n\nChannel guidance.'),
+      text: expect.stringContaining('Workspace guidance. Keep {\u200B{model}} literal.\n\nChannel guidance.'),
     }))
 
     await handlers?.message?.(message({

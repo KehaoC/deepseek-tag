@@ -137,6 +137,8 @@ profile's `cordis.patch.yml`:
       cwd: ''
       provider: ''
       model: ''
+      defaultInstructions: ''
+      groupScopes: []
 ```
 
 `tenant` is `feishu` for the China service and `lark` for the global service.
@@ -144,6 +146,13 @@ An empty provider/model pair uses the Harness Web profile's current default.
 An empty `cwd` uses the Harness process working directory. Profile values are
 the composition base; values saved in **Settings > Deepseek Tag** layer over
 them.
+
+Deepseek Tag follows Claude Tag's scope-first behavior model: one app-wide
+Agent identity serves the tenant, workspace defaults inherit into every group,
+and an exact `chat_id` scope can append instructions or override the model,
+working directory, and response behavior. There is no separate logical-Agent
+profile layer. Per-scope Connections are intentionally absent until the
+Harness runtime can enforce them at each external operation.
 
 Validate the composed profile before starting it:
 
