@@ -162,6 +162,39 @@ attachments continue in the parity work below.
 
 ## Phase 2 feature ledger
 
+### Scoped Agent access contract
+
+The phase-two configuration plane follows the official Claude Tag separation
+between place-bound behavior and service-account access:
+
+- **Observed Claude Tag behavior:** one application identity serves every
+  channel. Default, workspace, and channel scopes inherit downward; repository
+  grants combine as a union, same-host credentials prefer the narrowest scope,
+  and instructions concatenate broad-to-narrow. A thread freezes its model,
+  skills, plugins, and instructions at startup, while connection rules are
+  enforced for every request. DMs use personal rather than organization
+  connections.
+- **Lark equivalent:** one Feishu/Lark application is the transport identity;
+  the app installation is the root scope and an exact `chat_id` is the channel
+  scope. A topic/reply root is a session, not an admin credential-binding
+  scope. Until personal connections exist, DMs inherit no organization Access
+  bundle.
+- **Logical Agent profile:** an admin-facing reusable behavior template
+  containing instructions, model route, workspace template, and Access bundle
+  references. It does not change the app-wide bot name/avatar and is not a
+  credential container.
+- **Dependencies:** Harness settings and domain storage, programmatic Agent
+  setup/resume, the Harness credentials seam, the selected sandbox/runtime,
+  and a GitHub App installation connection.
+- **Security:** admission happens before Agent creation; credential values are
+  never stored in profiles, scopes, sessions, prompts, cards, or browser
+  responses; DMs resolve an empty organization grant set; disabling a scope or
+  revoking a grant takes effect before the next external operation.
+- **Acceptance:** two Lark groups can resolve different effective Agents,
+  instructions, models, workspaces, and GitHub repository grants; a sibling
+  group and a DM cannot observe or invoke an unbound grant; the settings UI
+  displays the exact effective access before launch.
+
 The order column is dependency order, not a promise that unrelated rows must
 ship in one release. Every row is intended to land as a production-usable
 commit with focused tests and migration-safe settings.

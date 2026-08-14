@@ -10,7 +10,9 @@ import {
 import {
   DEFAULT_APP_SECRET_REF,
   WEB_SETTINGS_PATH,
+  type AgentProfileSettings,
   type DeepseekTagSettings,
+  type LarkGroupScopeSettings,
   type LarkPermissionView,
   type LarkSetupView,
 } from '../contract.js'
@@ -55,6 +57,11 @@ export interface TagForm {
   cwd: string
   provider: string
   model: string
+  agentProfiles: AgentProfileSettings[]
+  defaultAgentProfileId: string
+  defaultInstructions: string
+  defaultAccessBundleIds: string[]
+  groupScopes: LarkGroupScopeSettings[]
 }
 
 /** Safe credential facts rendered by the browser. */
@@ -238,6 +245,17 @@ export function formOf(value: DeepseekTagSettings | undefined): TagForm {
     cwd: value?.cwd ?? '',
     provider: value?.provider ?? '',
     model: value?.model ?? '',
+    agentProfiles: (value?.agentProfiles ?? []).map(profile => ({
+      ...profile,
+      accessBundleIds: [...(profile.accessBundleIds ?? [])],
+    })),
+    defaultAgentProfileId: value?.defaultAgentProfileId ?? '',
+    defaultInstructions: value?.defaultInstructions ?? '',
+    defaultAccessBundleIds: [...(value?.defaultAccessBundleIds ?? [])],
+    groupScopes: (value?.groupScopes ?? []).map(group => ({
+      ...group,
+      accessBundleIds: [...(group.accessBundleIds ?? [])],
+    })),
   }
 }
 
@@ -476,6 +494,15 @@ export class TagSettingsController {
       dmAllowlist: [...form.dmAllowlist],
       groupAllowlist: [...form.groupAllowlist],
       workspaceMemoryGroups: [...form.workspaceMemoryGroups],
+      agentProfiles: form.agentProfiles.map(profile => ({
+        ...profile,
+        accessBundleIds: [...(profile.accessBundleIds ?? [])],
+      })),
+      defaultAccessBundleIds: [...form.defaultAccessBundleIds],
+      groupScopes: form.groupScopes.map(group => ({
+        ...group,
+        accessBundleIds: [...(group.accessBundleIds ?? [])],
+      })),
     }
     try {
       const saved = await this.scope.replace(section, snapshot.revision)

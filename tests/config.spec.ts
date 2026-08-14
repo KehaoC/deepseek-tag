@@ -25,4 +25,17 @@ describe('Deepseek Tag config', () => {
       provider: 'deepseek-official',
     })).toThrow(/provider and model/)
   })
+
+  it('rejects ambiguous or dangling scoped Agent configuration while disabled', () => {
+    expect(() => resolveConfig({
+      agentProfiles: [{ id: 'engineer', name: 'One' }, { id: 'engineer', name: 'Two' }],
+    })).toThrow(/duplicate Agent profile/)
+    expect(() => resolveConfig({ defaultAgentProfileId: 'missing' })).toThrow(/does not exist/)
+    expect(() => resolveConfig({
+      groupScopes: [{ chatId: 'oc_one', agentProfileId: 'missing' }],
+    })).toThrow(/unknown Agent profile/)
+    expect(() => resolveConfig({
+      groupScopes: [{ chatId: 'oc_one' }, { chatId: 'oc_one' }],
+    })).toThrow(/duplicate group scope/)
+  })
 })

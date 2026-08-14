@@ -19,10 +19,27 @@ vi.mock('@deepseek-ai/dsh-client-runtime/client', () => ({
 }))
 
 import { WebTagSettingsScope } from '../src/client/controller.js'
+import { formOf } from '../src/client/controller.js'
 
 afterEach(() => { vi.unstubAllGlobals() })
 
 describe('WebTagSettingsScope', () => {
+  it('materializes and clones scoped Agent configuration', () => {
+    const value = {
+      agentProfiles: [{ id: 'engineer', name: 'Engineer', accessBundleIds: ['github'] }],
+      defaultAgentProfileId: 'engineer',
+      defaultInstructions: 'Be precise.',
+      defaultAccessBundleIds: ['baseline'],
+      groupScopes: [{ chatId: 'oc_one', accessBundleIds: ['write'] }],
+    }
+    const form = formOf(value)
+    expect(form).toMatchObject(value)
+    form.agentProfiles[0]?.accessBundleIds?.push('changed')
+    form.groupScopes[0]?.accessBundleIds?.push('changed')
+    expect(value.agentProfiles[0]?.accessBundleIds).toEqual(['github'])
+    expect(value.groupScopes[0]?.accessBundleIds).toEqual(['write'])
+  })
+
   it('loads and replaces settings through the plugin-owned endpoint', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({

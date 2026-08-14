@@ -18,6 +18,9 @@ import { TagMemoryStore } from './memory.js'
 import { BridgeSupervisor, reportReconfigureFailure } from './supervisor.js'
 import { installWebSettingsEndpoint } from './web-settings.js'
 
+export { resolveAgentBehavior } from './agent-scope.js'
+export type { AgentScopeTarget, ResolvedAgentBehavior } from './agent-scope.js'
+
 export { admitsConversationMessage, DeepseekTagBridge, productionChannel, resolveTopicThread } from './bridge.js'
 export type { BridgeOptions, ChannelLike } from './bridge.js'
 export { Config, resolveConfig } from './config.js'
