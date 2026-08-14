@@ -5,19 +5,20 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
-import { SETTINGS_NAMESPACE, type DeepseekTagSettings } from '../contract.js'
+import { SETTINGS_NAMESPACE } from '../contract.js'
 import { TagSettingsSection, type TagSettingsInjected } from './SettingsSection.js'
-import { TagSettingsController } from './controller.js'
+import { TagSettingsController, WebTagSettingsScope } from './controller.js'
 import { en, LOCALE_NAMESPACE, zh } from './locales.js'
 import { adoptStyles } from './styles.js'
 
 /** Required browser services supplied by the Harness Web composition. */
-export const inject = ['slots', 'locale', 'connection', 'remote', 'settingsScope']
+export const inject = ['slots', 'locale', 'connection', 'remote']
 
 /** Mount the live settings scope, safe credential status, and settings page. */
 export function apply(ctx: ClientContext): void {
-  const { api } = ctx.get('connection') as ConnectionHandle
-  const scope = ctx.settingsScope.bind<DeepseekTagSettings>({ namespace: SETTINGS_NAMESPACE })
+  const connection = ctx.get('connection') as ConnectionHandle
+  const { api } = connection
+  const scope = new WebTagSettingsScope(connection.isLoopback)
   const controller = new TagSettingsController(scope, api)
   const t = ctx.locale.bind(LOCALE_NAMESPACE)
 
@@ -27,8 +28,14 @@ export function apply(ctx: ClientContext): void {
     const offCredential = ctx.remote.$on('credentials/updated', (ref) => {
       if (ref === controller.credential.getSnapshot().ref) void controller.refreshCredential(ref)
     })
-    const offReset = ctx.on('connection/reset', () => { void controller.refreshCredential() })
-    return () => { offCredential(); offReset() }
+    const offSettings = ctx.remote.$on('settings/document-updated', (namespace) => {
+      if (namespace === SETTINGS_NAMESPACE) void scope.load()
+    })
+    const offReset = ctx.on('connection/reset', () => {
+      void controller.refreshCredential()
+      void scope.load()
+    })
+    return () => { offCredential(); offSettings(); offReset() }
   }, 'deepseek-tag: credential status')
 
   ctx.slots.inject('settings.section', () => ctx.slots.register({

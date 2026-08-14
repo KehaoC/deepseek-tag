@@ -21,7 +21,8 @@ flowchart LR
   A --> O["Progress and result projection"]
   O --> T
 
-  UI["Harness Web settings"] --> CFG["Settings namespace"]
+  UI["Harness Web settings"] --> API["Loopback plugin endpoint"]
+  API --> CFG["Settings namespace"]
   UI --> SEC["Write-only credentials"]
   CFG --> SUP["Connection supervisor"]
   SEC --> SUP
@@ -44,7 +45,10 @@ The stable boundaries are:
   cloud execution remains a Harness composition choice (sandbox, tools, model,
   and workspace plugins), rather than a second agent loop inside Deepseek Tag.
 - **Control plane:** non-secret configuration belongs to the `deepseek-tag`
-  settings namespace; App Secret values belong only to `credentials`.
+  settings namespace and crosses the Web boundary through a same-origin,
+  loopback-only plugin route because Harness does not expose third-party
+  namespaces through its generic settings API. App Secret values belong only
+  to `credentials`.
 - **Projection:** Agent events will be projected into acknowledgment, progress,
   tool activity, final response, and artifacts without coupling Lark rendering
   to the Agent loop.

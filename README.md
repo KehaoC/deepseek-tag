@@ -52,6 +52,12 @@ later browser response contains it. A saved settings change is applied live.
 Deepseek Tag serializes connection changes and restores the previous healthy
 configuration if a replacement fails.
 
+Harness intentionally does not expose third-party settings namespaces through
+its generic configuration API. Deepseek Tag therefore serves its own
+same-origin, loopback-only Web endpoint and still stores the validated value in
+the standard Harness settings provider. The page is read-only when opened from
+a non-loopback host.
+
 In Feishu/Lark, send the bot a direct message or add it to a group and mention
 it. A direct-message chat shares one Agent session. A group topic or reply tree
 gets an isolated session.

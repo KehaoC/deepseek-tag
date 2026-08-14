@@ -6,10 +6,11 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-credentials'
-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { Config, resolveConfig, type Config as ConfigShape } from './config.js'
 import { SETTINGS_NAMESPACE } from './contract.js'
 import { BridgeSupervisor, reportReconfigureFailure } from './supervisor.js'
+import { installWebSettingsEndpoint } from './web-settings.js'
 
 export { DeepseekTagBridge, productionChannel } from './bridge.js'
 export type { BridgeOptions, ChannelLike } from './bridge.js'
@@ -24,12 +25,11 @@ export type { RunningBridge, SupervisorOptions } from './supervisor.js'
 /** Cordis plugin name used by loader diagnostics and the bundle row. */
 export const name = 'deepseek-tag'
 
-/** Agent creation is the only mandatory Harness capability. */
-export const inject = ['agents']
+/** Core Harness capabilities required by the bridge and its configuration plane. */
+export const inject = ['agents', 'settings']
 
 /** Activate the composition layer and optional live Web UI settings layer. */
 export function apply(ctx: Context, config: ConfigShape = {}): void {
-  let current: () => ConfigShape = () => config
   const supervisor = new BridgeSupervisor(ctx)
   if (!resolveConfig(config).enabled) {
     ctx.logger.info('[deepseek-tag] disabled; configure the plugin before connecting')
@@ -37,15 +37,16 @@ export function apply(ctx: Context, config: ConfigShape = {}): void {
   ctx.effect(() => () => supervisor.stop(), 'deepseek-tag.serve')
 
   const reconfigure = (): void => {
-    void supervisor.configure(current()).catch(error => { reportReconfigureFailure(ctx, error) })
+    void supervisor.configure(scope.get()).catch(error => { reportReconfigureFailure(ctx, error) })
   }
-  installSettingsSection(ctx, settingsNamespace(SETTINGS_NAMESPACE), Config, config, {
-    setSource(source) { current = source },
-    onChange: reconfigure,
+  const scope = ctx.settings.register(settingsNamespace(SETTINGS_NAMESPACE), Config, {
+    base: config,
     validate: resolveConfig,
   })
+  installWebSettingsEndpoint(ctx, scope)
+  scope.watch(reconfigure)
   ctx.on('credentials/updated', (ref) => {
-    if (ref === resolveConfig(current()).appSecretEnv) reconfigure()
+    if (ref === resolveConfig(scope.get()).appSecretEnv) reconfigure()
   })
   reconfigure()
 }

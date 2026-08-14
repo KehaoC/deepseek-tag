@@ -4,11 +4,12 @@ import type { IApiClient } from '@deepseek-ai/dsh-client-connection/client'
 import {
   createSnapshotStore,
   type SettingsScope,
+  type SettingsScopeSnapshot,
   type SnapshotStore,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import {
   DEFAULT_APP_SECRET_REF,
-  SETTINGS_NAMESPACE,
+  WEB_SETTINGS_PATH,
   type DeepseekTagSettings,
 } from '../contract.js'
 
@@ -40,6 +41,93 @@ export type SaveResult =
   | { ok: true }
   | { ok: false; reason: 'credential' | 'settings' }
 
+interface WebSettingsView {
+  value: DeepseekTagSettings
+  revision: number
+  writable: boolean
+}
+
+interface WebSettingsResponse {
+  ok: boolean
+  value?: WebSettingsView
+}
+
+/** Plugin-owned settings scope used because Harness does not expose third-party namespaces. */
+export class WebTagSettingsScope implements SettingsScope<DeepseekTagSettings> {
+  private readonly store: SnapshotStore<SettingsScopeSnapshot<DeepseekTagSettings>>
+
+  constructor(loopback: boolean) {
+    this.store = createSnapshotStore({
+      status: loopback ? 'loading' : 'unavailable',
+      value: undefined,
+      base: undefined,
+      user: undefined,
+      revision: undefined,
+      writable: false,
+      mode: loopback ? 'host' : 'memory',
+    })
+    if (loopback) void this.load()
+  }
+
+  getSnapshot(): SettingsScopeSnapshot<DeepseekTagSettings> {
+    return this.store.getSnapshot()
+  }
+
+  subscribe(listener: () => void): () => void {
+    return this.store.subscribe(listener)
+  }
+
+  async load(): Promise<void> {
+    await this.request({ operation: 'describe' })
+  }
+
+  async replace(value: DeepseekTagSettings, expectedRevision?: number): Promise<boolean> {
+    return this.request({ operation: 'replace', value, expectedRevision })
+  }
+
+  async set(field: string, value: unknown): Promise<void> {
+    await this.replace({ ...this.getSnapshot().value, [field]: value })
+  }
+
+  async unset(field: string): Promise<void> {
+    const next = { ...this.getSnapshot().value }
+    delete next[field as keyof DeepseekTagSettings]
+    await this.replace(next)
+  }
+
+  private async request(body: object): Promise<boolean> {
+    try {
+      const response = await fetch(WEB_SETTINGS_PATH, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!response.ok) return this.rejectInitialLoad()
+      const payload = await response.json() as WebSettingsResponse
+      if (!payload.ok || payload.value === undefined) return this.rejectInitialLoad()
+      const view = payload.value
+      this.store.set({
+        status: 'ready',
+        value: view.value,
+        base: undefined,
+        user: undefined,
+        revision: view.revision,
+        writable: view.writable,
+        mode: 'host',
+      })
+      return true
+    } catch (_transportFailure) {
+      return this.rejectInitialLoad()
+    }
+  }
+
+  private rejectInitialLoad(): false {
+    const current = this.store.getSnapshot()
+    if (current.status === 'loading') this.store.set({ ...current, status: 'unavailable' })
+    return false
+  }
+}
+
 /** Normalize a possibly partial value before it enters controlled inputs. */
 export function formOf(value: DeepseekTagSettings | undefined): TagForm {
   return {
@@ -69,8 +157,8 @@ export class TagSettingsController {
   readonly credential: SnapshotStore<CredentialState>
 
   constructor(
-    private readonly scope: SettingsScope<DeepseekTagSettings>,
-    private readonly api: Pick<IApiClient, 'credentials' | 'settings'>,
+    private readonly scope: WebTagSettingsScope,
+    private readonly api: Pick<IApiClient, 'credentials'>,
   ) {
     this.credential = createSnapshotStore<CredentialState>({
       ref: DEFAULT_APP_SECRET_REF,
@@ -139,16 +227,8 @@ export class TagSettingsController {
     }
     const snapshot = this.scope.getSnapshot()
     try {
-      const response = await this.api.settings.mutate({
-        ns: SETTINGS_NAMESPACE,
-        ops: Object.entries(section).map(([field, value]) => ({
-          op: 'set' as const,
-          path: [field],
-          value,
-        })),
-        ...(snapshot.revision === undefined ? {} : { expectedRevision: snapshot.revision }),
-      })
-      return response.result.ok ? { ok: true } : { ok: false, reason: 'settings' }
+      const saved = await this.scope.replace(section, snapshot.revision)
+      return saved ? { ok: true } : { ok: false, reason: 'settings' }
     } catch (_settingsWriteFailure) {
       return { ok: false, reason: 'settings' }
     }

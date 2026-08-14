@@ -37,3 +37,4 @@ export const DEFAULT_APP_SECRET_REF = 'DEEPSEEK_TAG_LARK_APP_SECRET'
 
 /** Settings namespace owned by both plugin halves. */
 export const SETTINGS_NAMESPACE = 'deepseek-tag'
+export const WEB_SETTINGS_PATH = '/plugins/deepseek-tag/settings'
