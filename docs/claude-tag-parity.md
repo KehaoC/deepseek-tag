@@ -52,7 +52,7 @@ The stable boundaries are:
 - **Projection:** Agent events will be projected into acknowledgment, progress,
   tool activity, final response, and artifacts without coupling Lark rendering
   to the Agent loop.
-- **Durable state:** session history uses Harness persistence. Place memory uses
+- **Durable state:** session history requires Harness persistence. Place memory uses
   a schema-validated Harness storage domain; routines, subscriptions, and audit
   records will get their own explicit stores instead of being hidden in prompts
   or process globals.

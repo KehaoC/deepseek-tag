@@ -10,6 +10,7 @@ import type {} from '@deepseek-ai/dsh-credentials'
 import type {} from '@deepseek-ai/dsh-storage-domain'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-tools'
+import type {} from '@deepseek-ai/dsh-session-persistence'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { Config, resolveConfig, type Config as ConfigShape } from './config.js'
 import { SETTINGS_NAMESPACE } from './contract.js'
@@ -34,7 +35,15 @@ export type { RunningBridge, SupervisorOptions } from './supervisor.js'
 export const name = 'deepseek-tag'
 
 /** Core Harness capabilities required by the bridge and its configuration plane. */
-export const inject = ['agentDefaultModel', 'agents', 'settings', 'storageDomain', 'systemPrompt', 'tools']
+export const inject = [
+  'agentDefaultModel',
+  'agents',
+  'sessionPersistence',
+  'settings',
+  'storageDomain',
+  'systemPrompt',
+  'tools',
+]
 
 /** Activate the composition layer and optional live Web UI settings layer. */
 export async function apply(ctx: Context, config: ConfigShape = {}): Promise<void> {

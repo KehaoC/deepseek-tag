@@ -28,6 +28,7 @@ dependency-ordered phase-two ledger live in
 
 - Node.js 22.19 or newer;
 - a working DeepSeek Harness Web profile;
+- a Harness session-persistence backend (included by the standard Web profile);
 - a Feishu/Lark custom app with bot capability, long-connection event delivery,
   and message receive/send permissions;
 - the app's App ID and App Secret.
