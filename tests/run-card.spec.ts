@@ -66,6 +66,8 @@ describe('run card projection', () => {
     expect(card).toContain('read_file')
     expect(card).not.toContain('secret')
     expect(card).not.toContain('sensitive output')
+    expect(card).not.toContain('🐋 **Deepseek Tag**')
+    expect(card).not.toContain('🐋 **收到，我来处理。**')
   })
 
   it('updates one managed card with strictly increasing sequences', async () => {

@@ -152,10 +152,7 @@ function panel(title: string, content: string, expanded: boolean): object {
 
 /** Render only model-visible text plus redacted tool names/statuses. */
 export function renderRunCard(state: RunCardState): object {
-  const elements: object[] = [{
-    tag: 'markdown',
-    content: state.terminal === 'running' ? '🐋 **收到，我来处理。**' : '🐋 **Deepseek Tag**',
-  }]
+  const elements: object[] = []
   if (state.todos.length > 0) {
     const complete = state.todos.filter(todo => todo.status === 'completed').length
     elements.push(panel(`**任务进度 · ${String(complete)}/${String(state.todos.length)}**`, checklist(state.todos), true))
