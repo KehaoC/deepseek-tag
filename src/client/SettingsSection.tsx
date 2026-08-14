@@ -8,6 +8,7 @@ import { resolveAgentBehavior } from '../agent-scope.js'
 import {
   formOf,
   validateForm,
+  type ChatDirectoryState,
   type CredentialState,
   type ModelCatalogState,
   type PermissionState,
@@ -61,6 +62,7 @@ export interface TagSettingsInjected {
     credential: SnapshotStore<CredentialState>
     setup: SnapshotStore<SetupState>
     permissions: SnapshotStore<PermissionState>
+    chats: SnapshotStore<ChatDirectoryState>
     models: SnapshotStore<ModelCatalogState>
   }
   save(form: TagForm, appSecret: string): Promise<SaveResult>
@@ -69,6 +71,7 @@ export interface TagSettingsInjected {
   pollSetup(): Promise<LarkSetupView | undefined>
   cancelSetup(): Promise<void>
   refreshPermissions(): Promise<void>
+  refreshChats(): Promise<void>
   pickDirectory(): Promise<string | null>
 }
 
@@ -103,6 +106,7 @@ export function TagSettingsSection(props: TagSettingsProps) {
   const credential = props.useCredential(value => value)
   const setup = props.useSetup(value => value)
   const permissions = props.usePermissions(value => value)
+  const chats = props.useChats(value => value)
   const models = props.useModels(value => value)
   const [form, setForm] = useState<TagForm>(() => formOf(snapshot.value))
   const [secret, setSecret] = useState('')
@@ -128,8 +132,11 @@ export function TagSettingsSection(props: TagSettingsProps) {
   }, [snapshot.revision, snapshot.value])
 
   useEffect(() => {
-    if (credential.configured && form.appId !== '') void props.refreshPermissions()
-  }, [credential.configured, form.appId, snapshot.revision])
+    if (credential.configured && (snapshot.value?.appId ?? '') !== '') {
+      void props.refreshPermissions()
+      void props.refreshChats()
+    }
+  }, [credential.configured, snapshot.revision])
 
   useEffect(() => {
     if (setup.value?.status !== 'waiting') return
@@ -205,6 +212,9 @@ export function TagSettingsSection(props: TagSettingsProps) {
     .map((scope, index) => ({ scope, index }))
     .filter(({ scope }) => normalizedScopeQuery === ''
       || `${scope.name ?? ''} ${scope.chatId}`.toLocaleLowerCase().includes(normalizedScopeQuery))
+  const configuredChatIds = new Set(form.groupScopes.map(scope => scope.chatId.trim()).filter(Boolean))
+  const filteredDiscoveredChats = chats.chats.filter(chat => normalizedScopeQuery === ''
+    || `${chat.name} ${chat.chatId}`.toLocaleLowerCase().includes(normalizedScopeQuery))
 
   const patchProfile = (index: number, value: Partial<TagForm['agentProfiles'][number]>): void => {
     const agentProfiles = form.agentProfiles.map((profile, offset) => (
@@ -261,8 +271,13 @@ export function TagSettingsSection(props: TagSettingsProps) {
     })
   }
 
-  const addGroupScope = (): void => {
-    patch({ groupScopes: [...form.groupScopes, { chatId: '', name: '', enabled: true, agentProfileId: '', instructions: '', provider: '', model: '', cwd: '', accessBundleIds: [], responseMode: 'inherit' }] })
+  const addGroupScope = (chatId = '', name = ''): void => {
+    const existingIndex = form.groupScopes.findIndex(scope => scope.chatId === chatId && chatId !== '')
+    if (existingIndex >= 0) {
+      setSelectedScopeIndex(existingIndex)
+      return
+    }
+    patch({ groupScopes: [...form.groupScopes, { chatId, name, enabled: true, agentProfileId: '', instructions: '', provider: '', model: '', cwd: '', accessBundleIds: [], responseMode: 'inherit' }] })
     setSelectedScopeIndex(form.groupScopes.length)
     setManagerView('scopes')
   }
@@ -488,11 +503,21 @@ export function TagSettingsSection(props: TagSettingsProps) {
       {managerView === 'scopes' ? <div className="dst-card dst-manager-card">
         <div className="dst-card-heading">
           <div className="dst-manager-heading"><button className="dst-back" type="button" onClick={() => { setManagerView('overview') }} aria-label={t('backToOverview')}>←</button><div><h3>{t('scopesTitle')}</h3><p className="dst-hint">{t('scopesHint')}</p></div></div>
-          <button className="dst-button dst-button--secondary" type="button" disabled={!snapshot.writable} onClick={addGroupScope}>{t('addScope')}</button>
+          <button className="dst-button dst-button--secondary" type="button" disabled={!paired || chats.loading} onClick={() => { void props.refreshChats() }}>{chats.loading ? t('refreshingGroups') : t('refreshGroups')}</button>
         </div>
         <div className="dst-manager-stack">
           <div className="dst-manager-list">
             <input className="dst-input" type="search" value={scopeQuery} placeholder={t('searchScopes')} aria-label={t('searchScopes')} onChange={event => { setScopeQuery(event.target.value) }} />
+            <div className="dst-directory-heading"><span><strong>{t('availableGroups')}</strong><small>{t('availableGroupsHint')}</small></span><span>{String(chats.chats.length)}</span></div>
+            {chats.status === 'unconfigured' ? <p className="dst-empty">{t('groupsNeedApp')}</p> : null}
+            {chats.status === 'unavailable' ? <p className="dst-error">{t('groupsUnavailable')}{chats.error ? `: ${chats.error}` : ''}</p> : null}
+            {chats.status === 'ready' && filteredDiscoveredChats.length === 0 ? <p className="dst-empty">{normalizedScopeQuery === '' ? t('groupsEmpty') : t('noSearchResults')}</p> : null}
+            {chats.status === 'ready' && filteredDiscoveredChats.length > 0 ? <div className="dst-directory-items">{filteredDiscoveredChats.map(chat => {
+              const configured = configuredChatIds.has(chat.chatId)
+              return <div key={chat.chatId}><span><strong>{chat.name || chat.chatId}</strong><small>{chat.chatId}</small></span><button className={configured ? 'dst-link-button' : 'dst-button dst-button--secondary'} type="button" disabled={!snapshot.writable || configured} onClick={() => { addGroupScope(chat.chatId, chat.name) }}>{configured ? t('groupConfigured') : t('configureGroup')}</button></div>
+            })}</div> : null}
+            <details className="dst-manual-scope"><summary>{t('manualScope')}</summary><div><p className="dst-hint">{t('manualScopeHint')}</p><button className="dst-button dst-button--secondary" type="button" disabled={!snapshot.writable} onClick={() => { addGroupScope() }}>{t('addScope')}</button></div></details>
+            <div className="dst-directory-heading"><span><strong>{t('configuredScopes')}</strong><small>{t('configuredScopesHint')}</small></span><span>{String(form.groupScopes.length)}</span></div>
             <div className="dst-manager-items">{filteredScopes.map(({ scope, index }) => <button className={selectedScopeIndex === index ? 'is-selected' : ''} type="button" key={`${scope.chatId}-${String(index)}`} aria-expanded={selectedScopeIndex === index} onClick={() => { setSelectedScopeIndex(selectedScopeIndex === index ? null : index) }}><span><strong>{scope.name || scope.chatId || t('newScope')}</strong><small>{scope.chatId || t('unsavedScope')}</small></span><span className="dst-manager-item-tail"><span className={`dst-mini-status${scope.enabled === false ? ' is-off' : ''}`}>{scope.enabled === false ? t('scopeDisabled') : t('scopeEnabled')}</span><span>{selectedScopeIndex === index ? '⌃' : '⌄'}</span></span></button>)}</div>
             {filteredScopes.length === 0 ? <p className="dst-empty">{normalizedScopeQuery === '' ? t('scopesEmpty') : t('noSearchResults')}</p> : null}
           </div>

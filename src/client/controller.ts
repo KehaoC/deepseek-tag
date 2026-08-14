@@ -12,6 +12,7 @@ import {
   WEB_SETTINGS_PATH,
   type AgentProfileSettings,
   type DeepseekTagSettings,
+  type LarkChatDirectoryView,
   type LarkGroupScopeSettings,
   type LarkPermissionView,
   type LarkSetupView,
@@ -84,6 +85,11 @@ export interface PermissionState extends LarkPermissionView {
   loading: boolean
 }
 
+/** Bot group directory state; entries never contain credentials. */
+export interface ChatDirectoryState extends LarkChatDirectoryView {
+  loading: boolean
+}
+
 /** One model route from Harness's live provider catalog. */
 export interface ModelOption {
   provider: string
@@ -114,6 +120,7 @@ interface WebSettingsResponse {
   value?: WebSettingsView
   setup?: LarkSetupView
   permissions?: LarkPermissionView
+  chats?: LarkChatDirectoryView
   error?: string
 }
 
@@ -184,6 +191,12 @@ export class WebTagSettingsScope implements SettingsScope<DeepseekTagSettings> {
     const response = await this.request({ operation: 'permissions-check' })
     if (response.permissions === undefined) throw new Error('permission status is unavailable')
     return response.permissions
+  }
+
+  async listChats(): Promise<LarkChatDirectoryView> {
+    const response = await this.request({ operation: 'chats-list' })
+    if (response.chats === undefined) throw new Error('Lark group directory is unavailable')
+    return response.chats
   }
 
   private async requestSettings(body: object): Promise<boolean> {
@@ -291,7 +304,9 @@ export class TagSettingsController {
   readonly credential: SnapshotStore<CredentialState>
   readonly setup: SnapshotStore<SetupState>
   readonly permissions: SnapshotStore<PermissionState>
+  readonly chats: SnapshotStore<ChatDirectoryState>
   readonly models: SnapshotStore<ModelCatalogState>
+  private chatRequest = 0
 
   constructor(
     private readonly scope: WebTagSettingsScope,
@@ -310,6 +325,11 @@ export class TagSettingsController {
       grantedScopes: [],
       missingScopes: [],
       capabilities: [],
+    })
+    this.chats = createSnapshotStore<ChatDirectoryState>({
+      loading: false,
+      status: 'unconfigured',
+      chats: [],
     })
     this.models = createSnapshotStore<ModelCatalogState>({ loading: true, options: [] })
     scope.subscribe(() => {
@@ -431,6 +451,27 @@ export class TagSettingsController {
     }
   }
 
+  /** Discover groups the configured bot is currently a member of. */
+  async refreshChats(): Promise<void> {
+    const request = ++this.chatRequest
+    const previous = this.chats.getSnapshot()
+    const { error: _error, ...rest } = previous
+    this.chats.set({ ...rest, loading: true })
+    try {
+      const value = await this.scope.listChats()
+      if (request !== this.chatRequest) return
+      this.chats.set({ ...value, loading: false })
+    } catch (error) {
+      if (request !== this.chatRequest) return
+      this.chats.set({
+        loading: false,
+        status: 'unavailable',
+        chats: [],
+        error: messageOf(error),
+      })
+    }
+  }
+
   /** Load the models the connected Harness runtime can actually route. */
   async refreshModels(): Promise<void> {
     this.models.set({ loading: true, options: [] })
@@ -465,6 +506,10 @@ export class TagSettingsController {
       writable: ref === previous.ref ? previous.writable : true,
       loading: true,
     })
+    if (ref !== previous.ref) {
+      this.chatRequest += 1
+      this.chats.set({ loading: false, status: 'unconfigured', chats: [] })
+    }
     try {
       const response = await this.api.credentials.describe({ refs: [ref] })
       if (!response.result.ok || this.credential.getSnapshot().ref !== ref) return
@@ -475,6 +520,10 @@ export class TagSettingsController {
         writable: view?.writable ?? true,
         loading: false,
       })
+      if (!(view?.configured ?? false)) {
+        this.chatRequest += 1
+        this.chats.set({ loading: false, status: 'unconfigured', chats: [] })
+      }
     } catch (_credentialReadFailure) {
       if (this.credential.getSnapshot().ref === ref) {
         this.credential.set({ ...this.credential.getSnapshot(), loading: false })

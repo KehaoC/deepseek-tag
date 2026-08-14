@@ -81,6 +81,19 @@ export interface LarkPermissionView {
   error?: string
 }
 
+/** One group the configured bot is currently a member of. */
+export interface LarkChatDirectoryEntry {
+  chatId: string
+  name: string
+}
+
+/** Secret-free bot group directory shared with the loopback browser. */
+export interface LarkChatDirectoryView {
+  status: 'ready' | 'unconfigured' | 'unavailable'
+  chats: LarkChatDirectoryEntry[]
+  error?: string
+}
+
 /** Plugin configuration supplied by composition and the settings document. */
 export interface DeepseekTagSettings {
   /** Whether the bridge should connect. Disabled installs stay inert. */

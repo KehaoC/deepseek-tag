@@ -13,9 +13,12 @@ import { Config, resolveConfig, type Config as ConfigShape } from './config.js'
 import {
   SETTINGS_NAMESPACE,
   WEB_SETTINGS_PATH,
+  type LarkChatDirectoryView,
   type LarkPermissionView,
   type LarkSetupView,
 } from './contract.js'
+import { listKnownChats } from './chat-directory.js'
+import { productionChannel } from './bridge.js'
 import {
   inspectLarkPermissions,
   LarkSetupManager,
@@ -34,6 +37,7 @@ export interface WebSettingsView {
 export interface WebSetupResponse {
   setup?: LarkSetupView
   permissions?: LarkPermissionView
+  chats?: LarkChatDirectoryView
 }
 
 type WebSettingsRequest =
@@ -45,6 +49,7 @@ type WebSettingsRequest =
   | { operation: 'setup-cancel'; id: string }
   | { operation: 'setup-finish'; id: string }
   | { operation: 'permissions-check' }
+  | { operation: 'chats-list' }
 
 function loopback(address: string | undefined): boolean {
   return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1'
@@ -83,6 +88,7 @@ function requestOf(value: unknown): WebSettingsRequest {
   if (input.operation === 'setup-create') return { operation: 'setup-create' }
   if (input.operation === 'setup-authorize') return { operation: 'setup-authorize' }
   if (input.operation === 'permissions-check') return { operation: 'permissions-check' }
+  if (input.operation === 'chats-list') return { operation: 'chats-list' }
   if (input.operation === 'setup-status'
     || input.operation === 'setup-cancel'
     || input.operation === 'setup-finish') {
@@ -142,7 +148,7 @@ async function mergeSettings(
 }
 
 async function permissionView(ctx: Context, scope: SettingsScope<ConfigShape>): Promise<LarkPermissionView> {
-  const config = resolveConfig(scope.get())
+  const { config, appSecret: resolved } = await resolvedAppSecret(ctx, scope)
   if (config.appId === '') {
     return {
       status: 'unconfigured',
@@ -151,10 +157,6 @@ async function permissionView(ctx: Context, scope: SettingsScope<ConfigShape>): 
       capabilities: [],
     }
   }
-  const credentials = ctx.get('credentials')
-  const resolved = credentials === undefined
-    ? process.env[config.appSecretEnv]
-    : (await credentials.resolve(credentialRef(config.appSecretEnv)))?.value
   if (resolved === undefined || resolved.length === 0) {
     return {
       status: 'unconfigured',
@@ -164,6 +166,43 @@ async function permissionView(ctx: Context, scope: SettingsScope<ConfigShape>): 
     }
   }
   return inspectLarkPermissions({ appId: config.appId, appSecret: resolved, tenant: config.tenant })
+}
+
+async function resolvedAppSecret(
+  ctx: Context,
+  scope: SettingsScope<ConfigShape>,
+): Promise<{ config: ReturnType<typeof resolveConfig>; appSecret: string | undefined }> {
+  const config = resolveConfig(scope.get())
+  if (config.appId === '') return { config, appSecret: undefined }
+  const credentials = ctx.get('credentials')
+  const appSecret = credentials === undefined
+    ? process.env[config.appSecretEnv]
+    : (await credentials.resolve(credentialRef(config.appSecretEnv)))?.value
+  return { config, appSecret }
+}
+
+async function chatDirectoryView(
+  ctx: Context,
+  scope: SettingsScope<ConfigShape>,
+): Promise<LarkChatDirectoryView> {
+  const { config, appSecret } = await resolvedAppSecret(ctx, scope)
+  if (config.appId === '' || appSecret === undefined || appSecret.length === 0) {
+    return { status: 'unconfigured', chats: [] }
+  }
+  try {
+    return {
+      status: 'ready',
+      chats: await listKnownChats(productionChannel(config, appSecret)),
+    }
+  } catch (error) {
+    ctx.logger.warn('[deepseek-tag] Lark group directory lookup failed: %s',
+      error instanceof Error ? error.message : String(error))
+    return {
+      status: 'unavailable',
+      chats: [],
+      error: 'Lark group directory request failed',
+    }
+  }
 }
 
 /** Register the plugin-owned route without changing Harness's settings allowlist. */
@@ -227,6 +266,13 @@ export function installWebSettingsEndpoint(ctx: Context, scope: SettingsScope<Co
               ok: true,
               value: viewOf(webCtx, scope),
               permissions: await permissionView(webCtx, scope),
+            })
+            return
+          } else if (request.operation === 'chats-list') {
+            json(res, 200, {
+              ok: true,
+              value: viewOf(webCtx, scope),
+              chats: await chatDirectoryView(webCtx, scope),
             })
             return
           }

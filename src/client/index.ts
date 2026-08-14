@@ -55,6 +55,7 @@ export function apply(ctx: ClientContext): void {
         credential: controller.credential,
         setup: controller.setup,
         permissions: controller.permissions,
+        chats: controller.chats,
         models: controller.models,
       },
       save: (form, secret) => controller.save(form, secret),
@@ -63,6 +64,7 @@ export function apply(ctx: ClientContext): void {
       pollSetup: () => controller.pollSetup(),
       cancelSetup: () => controller.cancelSetup(),
       refreshPermissions: () => controller.refreshPermissions(),
+      refreshChats: () => controller.refreshChats(),
       pickDirectory: () => controller.pickDirectory(),
     }),
   }, TagSettingsSection))

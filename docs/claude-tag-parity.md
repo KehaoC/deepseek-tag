@@ -228,7 +228,7 @@ commit with focused tests and migration-safe settings.
 | 25 | Member/guest/external-chat restrictions | Role and tenant checks before Agent creation; fail closed for externally shared chats unless allowed | Admission + directory integration |
 | 26 | Spend limits and threshold alerts | Organization and per-chat budgets, pre-turn refusal, 75/95% alerts, usage summaries | Token meter + durable usage policy |
 | 27 | Audit and traceability | Searchable task/routine/network/tool/setting audit; source message and external action correlation | Append-only audit projection |
-| 28 | Admin management for workspaces and versions | **Agent/scope editor done:** completed onboarding collapses into a connection summary; scalable searchable full-width accordion views create/remove reusable logical Agents, bind/disable exact Lark group scopes, and preview resolved behavior without changing the app-wide bot identity. GitHub access summary, rollout versions, and health inventory remain. | Admin Web surfaces |
+| 28 | Admin management for workspaces and versions | **Agent/scope editor done:** completed onboarding collapses into a connection summary; scalable searchable full-width accordion views create/remove reusable logical Agents, automatically discover groups the bot has joined, retain a manual `chat_id` fallback, bind/disable exact Lark group scopes, and preview resolved behavior without changing the app-wide bot identity. GitHub access summary, rollout versions, and health inventory remain. | Admin Web surfaces |
 | 29 | Retention and deletion controls | Configurable retention for session, memory, routine, credential, and audit domains; disconnect purge workflow | Data lifecycle coordinator |
 
 ## Delivery sequence
