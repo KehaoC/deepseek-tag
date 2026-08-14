@@ -24,9 +24,15 @@ export interface LarkSetupView {
 /** Verifiable app-identity grant status shared with the loopback browser. */
 export interface LarkPermissionView {
   status: 'ready' | 'missing' | 'unconfigured' | 'unknown'
-  granted: string[]
-  missing: string[]
-  capabilities: Array<'messages' | 'groupHistory'>
+  grantedScopes: string[]
+  missingScopes: string[]
+  capabilities: Array<
+    | 'appInspection'
+    | 'messages'
+    | 'directMessages'
+    | 'groupHistory'
+    | 'chatContext'
+  >
   error?: string
 }
 

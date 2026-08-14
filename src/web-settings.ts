@@ -19,6 +19,7 @@ import {
 import {
   inspectLarkPermissions,
   LarkSetupManager,
+  REQUIRED_LARK_SCOPES,
 } from './lark-setup.js'
 
 const MAX_BODY_BYTES = 64 * 1024
@@ -143,14 +144,24 @@ async function mergeSettings(
 async function permissionView(ctx: Context, scope: SettingsScope<ConfigShape>): Promise<LarkPermissionView> {
   const config = resolveConfig(scope.get())
   if (config.appId === '') {
-    return { status: 'unconfigured', granted: [], missing: ['im:message', 'im:message.group_msg'], capabilities: [] }
+    return {
+      status: 'unconfigured',
+      grantedScopes: [],
+      missingScopes: [...REQUIRED_LARK_SCOPES],
+      capabilities: [],
+    }
   }
   const credentials = ctx.get('credentials')
   const resolved = credentials === undefined
     ? process.env[config.appSecretEnv]
     : (await credentials.resolve(credentialRef(config.appSecretEnv)))?.value
   if (resolved === undefined || resolved.length === 0) {
-    return { status: 'unconfigured', granted: [], missing: ['im:message', 'im:message.group_msg'], capabilities: [] }
+    return {
+      status: 'unconfigured',
+      grantedScopes: [],
+      missingScopes: [...REQUIRED_LARK_SCOPES],
+      capabilities: [],
+    }
   }
   return inspectLarkPermissions({ appId: config.appId, appSecret: resolved, tenant: config.tenant })
 }

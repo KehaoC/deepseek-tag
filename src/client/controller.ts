@@ -270,8 +270,8 @@ export class TagSettingsController {
     this.permissions = createSnapshotStore<PermissionState>({
       loading: false,
       status: 'unconfigured',
-      granted: [],
-      missing: [],
+      grantedScopes: [],
+      missingScopes: [],
       capabilities: [],
     })
     this.models = createSnapshotStore<ModelCatalogState>({ loading: true, options: [] })
@@ -332,7 +332,15 @@ export class TagSettingsController {
         return completed
       }
       if (value.kind === 'authorize' && value.status === 'ready') {
-        await this.refreshPermissions()
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+          await this.refreshPermissions()
+          if (this.permissions.getSnapshot().status === 'ready') {
+            const { url: _url, ...rest } = value
+            this.setup.set({ loading: false, value: { ...rest, status: 'completed' } })
+            break
+          }
+          if (attempt < 5) await new Promise(resolve => setTimeout(resolve, 1_500))
+        }
         rememberSetupId(undefined)
       } else if (value.status === 'failed' || value.status === 'completed') {
         rememberSetupId(undefined)
@@ -378,8 +386,8 @@ export class TagSettingsController {
       this.permissions.set({
         loading: false,
         status: 'unknown',
-        granted: [],
-        missing: [],
+        grantedScopes: [],
+        missingScopes: [],
         capabilities: [],
         error: messageOf(error),
       })

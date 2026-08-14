@@ -54,8 +54,9 @@ source, and repeat the install.
 3. Choose **Create Lark app**. The official Feishu/Lark page opens with the bot
    capability, long-connection event, and required permissions prefilled. Confirm
    there; App ID and App Secret are saved automatically on this page.
-4. Review the permission preflight. If an existing app is missing a grant,
-   choose **Grant required access** to open the official incremental authorization flow.
+4. Review the permission preflight. If an existing app is missing a grant or
+   the message event, choose **Open Lark and grant all access**. One official
+   incremental authorization page requests the complete runtime bundle.
 5. Select the group/DM scope, one of the models discovered from Harness, and a
    working directory. Then enable Deepseek Tag and choose **Save and apply**.
 
@@ -97,12 +98,14 @@ forget a fact.
 ## App setup
 
 The guided Settings flow creates a Feishu/Lark PersonalAgent with bot capability.
-For manual setup, use a PersonalAgent or custom app with bot capability. Configure
-event delivery through WebSocket long connection and enable `im:message`
-(read/send messages) plus `im:message.group_msg` (read every message in
-groups). A read-only deployment may use `im:message:readonly` together with a
-separate bot-send permission instead. Publish a new app version after changing
-permissions. No callback URL, public port, or reverse proxy is required.
+For manual setup, use a PersonalAgent or custom app with bot capability and
+subscribe to `im.message.receive_v1` through WebSocket long connection. The
+least-privilege runtime bundle is `application:application:self_manage`,
+`im:message:readonly`, `im:message:send_as_bot`,
+`im:message.p2p_msg:readonly`, `im:message.group_msg`, `im:chat:read`, and
+`im:chat.members:read`. The broader `im:message` and `im:chat:readonly` grants
+remain compatible. Publish a new app version after changing permissions or
+events. No callback URL, public port, or reverse proxy is required.
 
 Before enabling the bridge, restrict the app's availability and configure the
 DM/group allowlists to match the people and chats that may operate the Agent.

@@ -16,6 +16,34 @@ import {
 } from './controller.js'
 import type { LOCALE_NAMESPACE } from './locales.js'
 
+const PERMISSION_BUNDLE = [
+  {
+    capability: 'appInspection',
+    codes: 'application:application:self_manage',
+    label: 'permissionAppInspection',
+  },
+  {
+    capability: 'messages',
+    codes: 'im:message:readonly + im:message:send_as_bot',
+    label: 'permissionMessages',
+  },
+  {
+    capability: 'directMessages',
+    codes: 'im:message.p2p_msg:readonly',
+    label: 'permissionDirectMessages',
+  },
+  {
+    capability: 'groupHistory',
+    codes: 'im:message.group_msg',
+    label: 'permissionGroupHistory',
+  },
+  {
+    capability: 'chatContext',
+    codes: 'im:chat:read + im:chat.members:read',
+    label: 'permissionChatContext',
+  },
+] as const
+
 export interface TagSettingsInjected {
   hooks: {
     tagSettings: SettingsScope<DeepseekTagSettings>
@@ -208,14 +236,18 @@ export function TagSettingsSection(props: TagSettingsProps) {
 
       <div className={`dst-card${paired ? '' : ' dst-card--muted'}`}>
         <div className="dst-card-title"><span className="dst-step">2</span><div><h3>{t('authorizeTitle')}</h3><p className="dst-hint">{t('authorizeHint')}</p></div></div>
+        <p className="dst-callout">{t('permissionBundle')}</p>
         <div className="dst-permission-list">
-          {(['im:message', 'im:message.group_msg'] as const).map(scope => {
-            const granted = permissions.capabilities.includes(scope === 'im:message' ? 'messages' : 'groupHistory')
+          {PERMISSION_BUNDLE.map(item => {
+            const granted = permissions.capabilities.includes(item.capability)
             return (
-            <div key={scope}><span className={`dst-check${granted ? ' is-done' : ''}`}>{granted ? '✓' : '!'}</span><code>{scope}</code><span>{scope === 'im:message' ? t('permissionMessages') : t('permissionGroupHistory')}</span></div>
+              <div key={item.capability}>
+                <span className={`dst-check${granted ? ' is-done' : ''}`}>{granted ? '✓' : '!'}</span>
+                <code>{item.codes}</code>
+                <span>{t(item.label)}</span>
+              </div>
             )
           })}
-          <div><span className="dst-check is-info">↗</span><code>im.message.receive_v1</code><span>{t('permissionEvent')}</span></div>
         </div>
         {permissions.status === 'missing' ? <p className="dst-callout dst-callout--warning">{t('permissionsMissing')}</p> : null}
         {permissions.status === 'unknown' ? <p className="dst-error">{t('permissionsUnknown')}{permissions.error === undefined ? '' : `: ${permissions.error}`}</p> : null}
@@ -223,7 +255,8 @@ export function TagSettingsSection(props: TagSettingsProps) {
           <button className="dst-button" type="button" disabled={!paired || setup.loading || setup.value?.status === 'waiting'} onClick={() => { void beginSetup('authorize') }}>{permissionsReady ? t('reauthorize') : t('authorizeNow')}</button>
           <button className="dst-button dst-button--secondary" type="button" disabled={!paired || permissions.loading} onClick={() => { void props.refreshPermissions() }}>{permissions.loading ? t('checking') : t('checkAgain')}</button>
         </div>
-        {setup.value?.kind === 'authorize' && setup.value.status === 'ready' ? <p className="dst-success">{t('authorizationCompleted')}</p> : null}
+        {setup.value?.kind === 'authorize' && setup.value.status === 'ready' ? <p className="dst-callout">{t('authorizationRefreshing')}</p> : null}
+        {setup.value?.kind === 'authorize' && setup.value.status === 'completed' ? <p className="dst-success">{t('authorizationCompleted')}</p> : null}
       </div>
 
       <div className={`dst-card${permissionsReady ? '' : ' dst-card--muted'}`}>

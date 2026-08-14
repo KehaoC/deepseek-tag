@@ -18,14 +18,21 @@ import type {
 
 /** Permissions used by transport delivery, replies, and scoped history tools. */
 export const REQUIRED_LARK_SCOPES = [
-  'im:message',
+  'application:application:self_manage',
+  'im:message:readonly',
+  'im:message:send_as_bot',
+  'im:message.p2p_msg:readonly',
   'im:message.group_msg',
+  'im:chat:read',
+  'im:chat.members:read',
 ] as const
 
 const RECOGNIZED_LARK_SCOPES = [
   ...REQUIRED_LARK_SCOPES,
-  'im:message:readonly',
-  'im:message:send_as_bot',
+  'im:message',
+  'im:message.p2p_msg',
+  'im:chat',
+  'im:chat:readonly',
 ] as const
 
 /** Event required by the channel SDK's WebSocket transport. */
@@ -229,29 +236,45 @@ export async function inspectLarkPermissions(
       params: { lang: input.tenant === 'lark' ? 'en_us' : 'zh_cn', user_id_type: 'open_id' },
       path: { app_id: input.appId },
     })
-    const actual = new Set((response.data?.app?.scopes ?? []).map(scope => scope.scope))
-    const messageRead = actual.has('im:message') || actual.has('im:message:readonly')
-    const messageSend = actual.has('im:message') || actual.has('im:message:send_as_bot')
-    const groupHistory = actual.has('im:message.group_msg')
+    const actualScopes = new Set((response.data?.app?.scopes ?? []).map(scope => scope.scope))
+    const messageRead = actualScopes.has('im:message') || actualScopes.has('im:message:readonly')
+    const messageSend = actualScopes.has('im:message') || actualScopes.has('im:message:send_as_bot')
+    const directMessages = actualScopes.has('im:message')
+      || actualScopes.has('im:message.p2p_msg')
+      || actualScopes.has('im:message.p2p_msg:readonly')
+    const groupHistory = actualScopes.has('im:message.group_msg')
+    const chatRead = actualScopes.has('im:chat')
+      || actualScopes.has('im:chat:readonly')
+      || actualScopes.has('im:chat:read')
+    const chatMembers = actualScopes.has('im:chat')
+      || actualScopes.has('im:chat:readonly')
+      || actualScopes.has('im:chat.members:read')
     const capabilities: LarkPermissionView['capabilities'] = [
+      'appInspection',
       ...(messageRead && messageSend ? ['messages' as const] : []),
+      ...(directMessages ? ['directMessages' as const] : []),
       ...(groupHistory ? ['groupHistory' as const] : []),
+      ...(chatRead && chatMembers ? ['chatContext' as const] : []),
     ]
-    const missing = [
-      ...(!messageRead || !messageSend ? ['im:message'] : []),
+    const missingScopes = [
+      ...(!messageRead ? ['im:message:readonly'] : []),
+      ...(!messageSend ? ['im:message:send_as_bot'] : []),
+      ...(!directMessages ? ['im:message.p2p_msg:readonly'] : []),
       ...(!groupHistory ? ['im:message.group_msg'] : []),
+      ...(!chatRead ? ['im:chat:read'] : []),
+      ...(!chatMembers ? ['im:chat.members:read'] : []),
     ]
     return {
-      status: missing.length === 0 ? 'ready' : 'missing',
-      granted: RECOGNIZED_LARK_SCOPES.filter(scope => actual.has(scope)),
-      missing,
+      status: missingScopes.length === 0 ? 'ready' : 'missing',
+      grantedScopes: RECOGNIZED_LARK_SCOPES.filter(scope => actualScopes.has(scope)),
+      missingScopes,
       capabilities,
     }
   } catch (error) {
     return {
       status: 'unknown',
-      granted: [],
-      missing: [...REQUIRED_LARK_SCOPES],
+      grantedScopes: [],
+      missingScopes: [...REQUIRED_LARK_SCOPES],
       capabilities: [],
       error: errorMessage(error),
     }

@@ -70,8 +70,8 @@ the active Web profile composes.
 | Installable Harness bundle | Done | `dsh.bundle.patch`, disabled-by-default Cordis row, self-contained `prepare` build |
 | Dedicated Web configuration | Done | `dsh.client` browser plugin under **Settings > Deepseek Tag** |
 | Secret-safe setup | Done | App Secret is write-only through Harness credentials; UI reads configured/writable facts only |
-| Guided app setup | Done | One-click official PersonalAgent creation with prefilled bot event/scopes, resumable polling, cancellation, expiry, and manual fallback |
-| Permission preflight | Done | Actual tenant grants are checked before launch; missing message/history grants open additive official authorization |
+| Guided app setup | Done | One-click official PersonalAgent creation with the complete runtime permission/event bundle, resumable polling, cancellation, expiry, and manual fallback |
+| Permission preflight | Done | Actual tenant scopes are checked before launch; all scopes and the message event open in one additive official authorization flow |
 | Runtime choices | Done | Model selection comes from the live Harness catalog and working directories use the native chooser; manual model routing appears only when discovery fails |
 | Local and cloud-hosted Web runtime | Done | Outbound WebSocket needs no inbound public webhook; Agent execution stays in the composed Harness runtime |
 | DM conversation | Done | One durable Agent session per DM chat |
@@ -100,9 +100,13 @@ attachments continue in the parity work below.
   complete, keeps all steps on one resumable page, pairs the chat workspace,
   asks where the Agent may run, and launches only after the prerequisite steps.
 - **Lark equivalent:** `registerApp` opens Feishu/Lark's official PersonalAgent
-  create page with the app name, bot template, `im.message.receive_v1`,
-  `im:message`, and `im:message.group_msg` prefilled. The same device flow with
-  `appId + addons` performs additive authorization for an existing app.
+  create page with the app name, bot template, `im.message.receive_v1`, and all
+  seven runtime scopes prefilled. The same device flow with `appId + addons`
+  performs one additive authorization for an existing app. Scope preflight
+  retries through the platform's eventual-consistency window after the admin
+  confirms the official page. Feishu does not expose a reliable event inventory
+  through this application API, so event delivery is validated by the live
+  connection and an actual message rather than presenting a false grant state.
 - **Dependencies:** loopback Harness Web, writable Harness settings and
   credentials, access to the Feishu/Lark accounts domain, and an admin allowed
   to create or update the tenant app. GitHub and email-account setup are

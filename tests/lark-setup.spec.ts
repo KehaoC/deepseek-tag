@@ -83,21 +83,25 @@ describe('inspectLarkPermissions', () => {
     )
     expect(view).toEqual({
       status: 'missing',
-      granted: ['im:message'],
-      missing: ['im:message.group_msg'],
-      capabilities: ['messages'],
+      grantedScopes: ['im:message'],
+      missingScopes: ['im:message.group_msg', 'im:chat:read', 'im:chat.members:read'],
+      capabilities: ['appInspection', 'messages', 'directMessages'],
     })
   })
 
-  it('accepts the documented read-only plus send-as-bot permission split', async () => {
+  it('verifies the complete least-privilege permission bundle', async () => {
     const createChannel = () => ({
       rawClient: {
         application: {
           application: {
             get: async () => ({ data: { app: { scopes: [
+              { scope: 'application:application:self_manage' },
               { scope: 'im:message:readonly' },
               { scope: 'im:message:send_as_bot' },
+              { scope: 'im:message.p2p_msg:readonly' },
               { scope: 'im:message.group_msg' },
+              { scope: 'im:chat:read' },
+              { scope: 'im:chat.members:read' },
             ] } } }),
           },
         },
@@ -108,7 +112,13 @@ describe('inspectLarkPermissions', () => {
       createChannel as never,
     )
     expect(view.status).toBe('ready')
-    expect(view.capabilities).toEqual(['messages', 'groupHistory'])
-    expect(view.missing).toEqual([])
+    expect(view.capabilities).toEqual([
+      'appInspection',
+      'messages',
+      'directMessages',
+      'groupHistory',
+      'chatContext',
+    ])
+    expect(view.missingScopes).toEqual([])
   })
 })
