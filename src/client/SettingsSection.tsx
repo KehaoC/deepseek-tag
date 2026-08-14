@@ -145,6 +145,10 @@ export function TagSettingsSection(props: TagSettingsProps) {
             <option value="lark">{t('tenantLark')}</option>
           </select>
         </div>
+        <div className="dst-field">
+          <strong>{t('permissions')}</strong>
+          <span className="dst-hint">{t('permissionsHint')}</span>
+        </div>
       </div>
 
       <div className="dst-card">

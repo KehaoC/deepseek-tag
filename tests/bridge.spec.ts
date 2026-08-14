@@ -2,7 +2,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { AgentHandle } from '@deepseek-ai/dsh-agent'
 import { createAssistantMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
-import type { NormalizedMessage } from '@larksuite/channel'
+import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { LarkChannel, NormalizedMessage } from '@larksuite/channel'
 import { describe, expect, it, vi } from 'vitest'
 import {
   admitsConversationMessage,
@@ -158,5 +159,99 @@ describe('Deepseek Tag bridge', () => {
     expect(channel.disconnect).toHaveBeenCalledOnce()
     expect(handles[0]?.dispose).toHaveBeenCalledOnce()
     expect(handles[1]?.dispose).toHaveBeenCalledOnce()
+  })
+
+  it('seeds an existing topic and installs chat history in the Agent scope', async () => {
+    let handlers: Parameters<ChannelLike['on']>[0] | undefined
+    const list = vi.fn(async () => ({
+      code: 0,
+      data: {
+        items: [{
+          message_id: 'om_prior',
+          thread_id: 'omt_topic',
+          chat_id: 'oc_chat',
+          msg_type: 'text',
+          create_time: '1000',
+          body: { content: '{"text":"context before the mention"}' },
+          sender: { id: 'ou_prior', sender_type: 'user', sender_name: 'Ada' },
+        }],
+      },
+    }))
+    const channel: ChannelLike = {
+      rawClient: {
+        im: { v1: { message: { list } } },
+      } as unknown as LarkChannel['rawClient'],
+      botIdentity: { openId: 'ou_bot', name: 'Deepseek Tag' },
+      on: vi.fn(next => {
+        handlers = next
+        return vi.fn()
+      }),
+      connect: vi.fn(async () => undefined),
+      disconnect: vi.fn(async () => undefined),
+      reply: vi.fn(async () => undefined),
+    }
+    const prompts: UserMessage[] = []
+    const tools: ToolDefinition[] = []
+    const events: SessionEvent[] = []
+    const handle = {
+      agent: {
+        session: { events },
+        followup(prompt: UserMessage) { prompts.push(prompt) },
+        async whenIdle() {
+          events.push({
+            type: 'assistant/message', seq: 0, time: 0,
+            data: {
+              turn: 1,
+              step: 1,
+              message: createAssistantMessage({
+                content: [{ type: 'text', text: 'done' }],
+                source: { provider: 'test', model: 'test' },
+              }),
+            },
+          })
+          events.push({ type: 'turn/end', seq: 1, time: 1, data: { turn: 1, reason: { kind: 'completed' } } })
+        },
+      },
+      dispose: vi.fn(async () => undefined),
+    } as unknown as AgentHandle
+    const create = vi.fn(async (options: { setup?: (ctx: Context) => void }) => {
+      options.setup?.({
+        systemPrompt: { section: vi.fn(() => vi.fn()) },
+        tools: { register: vi.fn((tool: ToolDefinition) => { tools.push(tool); return vi.fn() }) },
+      } as unknown as Context)
+      return handle
+    })
+    const ctx = {
+      agents: { create, resume: vi.fn() },
+      agentDefaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      get: () => ({ list: vi.fn(async () => []) }),
+    } as unknown as Context
+    const bridge = new DeepseekTagBridge(ctx, {
+      config: resolveConfig({ enabled: true, appId: 'cli_test' }),
+      appSecret: 'secret',
+      createChannel: () => channel,
+    })
+
+    await bridge.start()
+    await handlers?.message?.(message({
+      chatType: 'group',
+      chatMode: 'topic',
+      threadId: 'omt_topic',
+      mentionedBot: true,
+      content: 'summarize this',
+    }))
+
+    expect(list).toHaveBeenCalledWith({
+      params: expect.objectContaining({
+        container_id_type: 'thread',
+        container_id: 'omt_topic',
+        sort_type: 'ByCreateTimeAsc',
+        page_size: 50,
+      }),
+    })
+    expect((prompts[0]?.content[0] as { text?: string }).text).toContain('context before the mention')
+    expect(tools.map(tool => tool.name)).toContain('deepseek_tag_history')
+    await bridge.stop()
   })
 })

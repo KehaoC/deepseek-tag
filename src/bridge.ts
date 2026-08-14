@@ -14,6 +14,11 @@ import {
 } from '@larksuite/channel'
 import type { ResolvedConfig } from './config.js'
 import { ConversationQueue } from './conversation-queue.js'
+import {
+  renderInitialThreadContext,
+  supportsHistory,
+  TagHistoryAccess,
+} from './history.js'
 import type { TagMemoryStore } from './memory.js'
 import { finalTurnResult } from './response.js'
 import { conversationPlace, conversationScope, createSessionId } from './scope.js'
@@ -30,6 +35,8 @@ export interface ChannelLike {
   disconnect(): Promise<void>
   reply(message: NormalizedMessage, input: { markdown: string }): Promise<unknown>
   fetchRawMessage?(messageId: string): Promise<unknown[]>
+  readonly rawClient?: LarkChannel['rawClient']
+  botIdentity?: LarkChannel['botIdentity']
 }
 
 /** Bridge construction seams. */
@@ -204,14 +211,27 @@ export class DeepseekTagBridge {
   private async deliverMessage(message: NormalizedMessage): Promise<void> {
     if (this.stopped) return
     if (!this.admits(message)) return
-    const content = this.promptFor(message)
+    const scope = conversationScope(message)
+    const sessionExists = this.persistedSessionIds.has(this.sessionIdForScope(scope))
+    const history = supportsHistory(this.channel)
+      ? new TagHistoryAccess(this.channel, message)
+      : undefined
+    let initialContext = ''
+    if (!sessionExists && history !== undefined) {
+      try {
+        initialContext = renderInitialThreadContext(await history.initialThreadContext())
+      } catch (error) {
+        this.ctx.logger.warn('[deepseek-tag] initial thread history lookup failed: %s', messageOf(error))
+      }
+    }
+    const content = this.promptFor(message, initialContext)
     if (content === undefined) {
       await this.safeReply(message, ATTACHMENT_NOTICE)
       return
     }
     let handle: AgentHandle | undefined
     try {
-      handle = await this.activateConversation(message)
+      handle = await this.activateConversation(message, history)
       const session = handle.agent.session
       const startSeq = session.events.length
       handle.agent.followup(createUserMessage({
@@ -234,28 +254,36 @@ export class DeepseekTagBridge {
     }
   }
 
-  private promptFor(message: NormalizedMessage): string | undefined {
+  private promptFor(message: NormalizedMessage, initialContext = ''): string | undefined {
     const text = message.content.trim()
     if (text.length === 0 && message.resources.length > 0) return undefined
     const body = text.length === 0 ? 'How can I help you?' : text
     const attachment = message.resources.length === 0 ? '' : `\n\n[${ATTACHMENT_NOTICE}]`
-    if (message.chatType === 'p2p') return `${body}${attachment}`
+    const context = initialContext.length === 0 ? '' : `${initialContext}\n\n`
+    if (message.chatType === 'p2p') return `${context}${body}${attachment}`
     const sender = message.senderName?.trim() || message.senderId
-    return `Lark group message from ${JSON.stringify(sender)}:\n${body}${attachment}`
+    return `${context}Lark group message from ${JSON.stringify(sender)}:\n${body}${attachment}`
   }
 
-  private async activateConversation(message: NormalizedMessage): Promise<AgentHandle> {
+  private async activateConversation(
+    message: NormalizedMessage,
+    history: TagHistoryAccess | undefined,
+  ): Promise<AgentHandle> {
     const scope = conversationScope(message)
     const { config } = this.options
     const place = conversationPlace(message, config)
     const actor = message.senderName?.trim() || message.senderId
     const sessionId = this.sessionIdForScope(scope)
     const memory = this.options.memory
+    const setup = memory === undefined && history === undefined
+      ? undefined
+      : (agentCtx: Context): void => {
+          memory?.install(agentCtx, place, actor)
+          history?.install(agentCtx)
+        }
     const options = {
       agentOptions: this.agentOptions,
-      ...(memory === undefined
-        ? {}
-        : { setup: (agentCtx: Context) => { memory.install(agentCtx, place, actor) } }),
+      ...(setup === undefined ? {} : { setup }),
     }
     const handle = this.persistedSessionIds.has(sessionId)
       ? await this.ctx.agents.resume({ resumeSessionId: sessionId, ...options })

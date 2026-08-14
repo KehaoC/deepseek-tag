@@ -12,6 +12,9 @@ The current release provides the phase-one text conversation path:
 - raw-message topic-id recovery when Feishu omits `thread_id` from a root event;
 - durable session resume across turns and Web runtime restarts;
 - one live Agent/sandbox activation per request, released after the turn becomes idle;
+- first-engagement context from up to 50 prior messages in an existing topic;
+- an Agent history tool confined to the current chat, with access to channel
+  messages and explicitly selected sibling topics;
 - place-scoped durable memory with DM isolation, private-group memory, and
   explicitly enabled workspace-sharing groups;
 - replies returned to the originating Feishu/Lark conversation;
@@ -30,7 +33,7 @@ dependency-ordered phase-two ledger live in
 - a working DeepSeek Harness Web profile;
 - a Harness session-persistence backend (included by the standard Web profile);
 - a Feishu/Lark custom app with bot capability, long-connection event delivery,
-  and message receive/send permissions;
+  `im:message`, `im:message.group_msg`, and bot send permissions;
 - the app's App ID and App Secret.
 
 ## Install
@@ -68,6 +71,14 @@ it. A direct-message chat shares one Agent session. A group topic or reply tree
 gets an isolated session. Replies rebuild the same durable session after its
 previous live runtime has been released.
 
+Each isolated Agent can read up to 50 recent messages from its current chat.
+For topic groups, the chat timeline contains topic roots; the Agent can open
+any returned topic reference to read up to 50 messages from that sibling topic.
+History results do not expose raw chat, thread, message, or sender IDs. When
+the bot is first mentioned partway through an existing topic, up to 50
+messages from the start of that topic are included automatically, with other
+bots' messages filtered out.
+
 Memory follows the same place hierarchy. A DM reads and writes only its own
 memory. An ordinary group reads workspace memory but writes only its own group
 memory. Because Lark does not expose Slack's public/private classification,
@@ -79,8 +90,11 @@ forget a fact.
 ## App setup
 
 Use a Feishu/Lark PersonalAgent or custom app with bot capability. Configure
-event delivery through WebSocket long connection and enable message receive and
-send permissions. No callback URL, public port, or reverse proxy is required.
+event delivery through WebSocket long connection and enable `im:message`
+(read/send messages) plus `im:message.group_msg` (read every message in
+groups). A read-only deployment may use `im:message:readonly` together with a
+separate bot-send permission instead. Publish a new app version after changing
+permissions. No callback URL, public port, or reverse proxy is required.
 
 Before enabling the bridge, restrict the app's availability and configure the
 DM/group allowlists to match the people and chats that may operate the Agent.
@@ -137,6 +151,9 @@ dsh --profile web
   is writable; it cannot retrieve the secret.
 - Settings writes are revision-fenced and committed atomically.
 - Transport ids are hashed before place-memory keys reach durable storage.
+- History tools are bound to the triggering chat; sibling threads are addressed
+  by per-run opaque references and every thread response is checked against the
+  current chat before its content reaches the Agent.
 - Private groups cannot modify workspace memory; DMs cannot read group or
   workspace memory.
 - Lark SDK message deduplication, reconnect handling, outbound validation, and

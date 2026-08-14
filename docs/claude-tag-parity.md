@@ -76,6 +76,7 @@ the active Web profile composes.
 | Multi-turn context | Done | Every turn resumes one durable thread session while its live Agent is released after idle |
 | Runtime lifecycle | Done | One Agent/sandbox activation per request; `AgentHandle.dispose()` releases the live scoped world while session persistence retains the thread |
 | Thread isolation | Done | Same-thread turns serialize; sibling topics in one group may run concurrently with separate live Agent scopes |
+| Conversation history | Implemented; requires deployment check | First engagement seeds up to 50 prior human messages; a chat-confined read-only tool lists channel roots and opens current or discovered sibling topics through opaque references |
 | Place memory | Done | DM isolation, private-group writes, read-only workspace inheritance, and explicit workspace-sharing groups over a durable storage domain |
 | Final text response | Done | Last visible assistant message from the completed turn is sent back to the originating Lark message |
 | Access policy | Done | DM modes plus DM-user and group-chat allowlists are enforced by the channel SDK |
@@ -87,6 +88,24 @@ the active Web profile composes.
 Phase 1 intentionally returns a final text reply. Files are disclosed as not
 yet consumed instead of being silently ignored. QR onboarding, connection
 health, progress cards, commands, and attachments begin the parity work below.
+
+### Conversation history parity
+
+- **Observed Claude behavior:** sessions remain isolated per thread, but may
+  read their channel; first engagement partway through a thread includes up to
+  50 messages from its start, excluding other bots.
+- **Lark equivalent:** `im.v1.message.list` with a `chat` container returns the
+  channel timeline and topic roots; each topic's replies require a second read
+  with a `thread` container.
+- **Dependencies:** the app must have `im:message` (or
+  `im:message:readonly`) and, for groups, `im:message.group_msg`, and must
+  remain a member of the queried group.
+- **Security:** model-facing thread references are opaque, historical content
+  is labeled untrusted, and every thread response is verified to belong to the
+  triggering chat before projection.
+- **Acceptance:** a newly engaged topic receives its earlier human context; an
+  Agent can list current-channel history and open a sibling topic, while a
+  thread from another chat is rejected.
 
 ## Phase 2 feature ledger
 

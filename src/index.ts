@@ -25,6 +25,12 @@ export type { Config as DeepseekTagConfig, ResolvedConfig } from './config.js'
 export { ConversationQueue } from './conversation-queue.js'
 export { finalTurnResult } from './response.js'
 export type { TurnResult } from './response.js'
+export {
+  renderInitialThreadContext,
+  supportsHistory,
+  TagHistoryAccess,
+} from './history.js'
+export type { HistoryChannel, HistoryMessage } from './history.js'
 export { TagMemoryStore, memoryDomainSpec } from './memory.js'
 export type { MemoryNote } from './memory.js'
 export { conversationPlace, conversationScope, createSessionId } from './scope.js'
