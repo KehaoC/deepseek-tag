@@ -260,10 +260,29 @@ export function formOf(value: DeepseekTagSettings | undefined): TagForm {
 }
 
 /** Client-side validation mirrors the host's constraints for immediate feedback. */
-export function validateForm(form: TagForm): 'appId' | 'dmAllowlist' | 'modelRoute' | undefined {
+export function validateForm(form: TagForm): 'appId' | 'dmAllowlist' | 'modelRoute' | 'agentScopes' | undefined {
   if (form.enabled && !/^cli_[A-Za-z0-9]+$/.test(form.appId)) return 'appId'
   if (form.dmMode === 'allowlist' && form.dmAllowlist.length === 0) return 'dmAllowlist'
   if ((form.provider.trim() === '') !== (form.model.trim() === '')) return 'modelRoute'
+  const profileIds = new Set<string>()
+  for (const profile of form.agentProfiles) {
+    if (!/^[a-z][a-z0-9-]{0,62}$/.test(profile.id)
+      || profileIds.has(profile.id)
+      || profile.name.trim().length === 0
+      || ((profile.provider?.trim() ?? '') === '') !== ((profile.model?.trim() ?? '') === '')) return 'agentScopes'
+    profileIds.add(profile.id)
+  }
+  if (form.defaultAgentProfileId !== '' && !profileIds.has(form.defaultAgentProfileId)) return 'agentScopes'
+  const chats = new Set<string>()
+  for (const group of form.groupScopes) {
+    if (group.chatId.trim() === ''
+      || chats.has(group.chatId.trim())
+      || (group.agentProfileId !== undefined
+        && group.agentProfileId !== ''
+        && !profileIds.has(group.agentProfileId))
+      || ((group.provider?.trim() ?? '') === '') !== ((group.model?.trim() ?? '') === '')) return 'agentScopes'
+    chats.add(group.chatId.trim())
+  }
   return undefined
 }
 

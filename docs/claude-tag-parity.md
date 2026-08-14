@@ -210,7 +210,7 @@ commit with focused tests and migration-safe settings.
 | 7 | Files and images in prompts | Authenticated download, size/type limits, Harness attachment ingestion, cleanup, and explicit unsupported-type errors | Transport ↔ attachment service |
 | 8 | Rich final outputs | Lark files/cards plus Harness deliverables for documents, charts, hosted pages, and repository links | Result/artifact projection |
 | 9 | Model choice per thread/channel/DM | **Scope runtime done:** a group may inherit or override an Agent profile model and each thread freezes the materialized route. Per-thread commands and the scope editor remain. | Runtime policy + settings |
-| 10 | Per-channel customization/instructions | **Core runtime done:** installation, Agent profile, and exact-group instructions concatenate deterministically; response mode and workspace template resolve narrowest-first and persist in a thread snapshot. Admin management UI remains. | Scope configuration store |
+| 10 | Per-channel customization/instructions | **Done for the current behavior surface:** installation, Agent profile, and exact-group instructions concatenate deterministically; response mode, model, and workspace resolve narrowest-first and persist in a thread snapshot. The Web UI creates reusable Agents, binds exact `chat_id` scopes, and previews effective behavior. | Scope configuration store |
 | 11 | Shared multi-user thread session | Preserve actor attribution, let any admitted member steer, serialize conflicting actions, record who changed what | Conversation coordinator + audit |
 | 12 | Channel memory | **Core done:** remember/list/update/forget tool, workspace sharing, private-chat isolation. Admin review/delete UI remains. | Scoped memory store + prompt section |
 | 13 | Dedicated agent identity | Separate application identity from invoking user; service-account credentials scoped to org/workspace/private chat equivalents | Identity and access bundles |
@@ -228,7 +228,7 @@ commit with focused tests and migration-safe settings.
 | 25 | Member/guest/external-chat restrictions | Role and tenant checks before Agent creation; fail closed for externally shared chats unless allowed | Admission + directory integration |
 | 26 | Spend limits and threshold alerts | Organization and per-chat budgets, pre-turn refusal, 75/95% alerts, usage summaries | Token meter + durable usage policy |
 | 27 | Audit and traceability | Searchable task/routine/network/tool/setting audit; source message and external action correlation | Append-only audit projection |
-| 28 | Admin management for workspaces and versions | Attach/detach tenants/chats, rollout versions, health inventory, safe migration and disconnect cleanup | Admin Web surfaces |
+| 28 | Admin management for workspaces and versions | **Agent/scope editor done:** create/remove reusable logical Agents, bind/disable exact Lark group scopes, and preview resolved behavior without changing the app-wide bot identity. GitHub access summary, rollout versions, and health inventory remain. | Admin Web surfaces |
 | 29 | Retention and deletion controls | Configurable retention for session, memory, routine, credential, and audit domains; disconnect purge workflow | Data lifecycle coordinator |
 
 ## Delivery sequence

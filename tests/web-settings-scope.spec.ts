@@ -18,8 +18,7 @@ vi.mock('@deepseek-ai/dsh-client-runtime/client', () => ({
   },
 }))
 
-import { WebTagSettingsScope } from '../src/client/controller.js'
-import { formOf } from '../src/client/controller.js'
+import { formOf, validateForm, WebTagSettingsScope } from '../src/client/controller.js'
 
 afterEach(() => { vi.unstubAllGlobals() })
 
@@ -38,6 +37,18 @@ describe('WebTagSettingsScope', () => {
     form.groupScopes[0]?.accessBundleIds?.push('changed')
     expect(value.agentProfiles[0]?.accessBundleIds).toEqual(['github'])
     expect(value.groupScopes[0]?.accessBundleIds).toEqual(['write'])
+  })
+
+  it('rejects incomplete Agent and group scope edits before save', () => {
+    const form = formOf(undefined)
+    form.agentProfiles = [{ id: 'Engineer', name: 'Engineer' }]
+    expect(validateForm(form)).toBe('agentScopes')
+    form.agentProfiles = [{ id: 'engineer', name: 'Engineer' }]
+    form.defaultAgentProfileId = 'engineer'
+    form.groupScopes = [{ chatId: 'oc_one', agentProfileId: 'missing' }]
+    expect(validateForm(form)).toBe('agentScopes')
+    form.groupScopes = [{ chatId: 'oc_one', agentProfileId: 'engineer' }]
+    expect(validateForm(form)).toBeUndefined()
   })
 
   it('loads and replaces settings through the plugin-owned endpoint', async () => {

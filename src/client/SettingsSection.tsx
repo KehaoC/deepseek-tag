@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { SettingsScope, SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { DeepseekTagSettings, LarkSetupView } from '../contract.js'
+import { resolveAgentBehavior } from '../agent-scope.js'
 import {
   formOf,
   validateForm,
@@ -90,6 +91,13 @@ function openPendingPage(): Window | null {
   return popup
 }
 
+function nextAgentNumber(profiles: TagForm['agentProfiles']): number {
+  const used = new Set(profiles.map(profile => profile.id))
+  let number = profiles.length + 1
+  while (used.has(`agent-${String(number)}`)) number += 1
+  return number
+}
+
 export function TagSettingsSection(props: TagSettingsProps) {
   const snapshot = props.useTagSettings(value => value)
   const credential = props.useCredential(value => value)
@@ -151,11 +159,11 @@ export function TagSettingsSection(props: TagSettingsProps) {
     else popup?.close()
   }
 
-  const chooseDirectory = async (): Promise<void> => {
+  const chooseDirectory = async (applyPath: (path: string) => void = path => { patch({ cwd: path }) }): Promise<void> => {
     setDirectoryError(false)
     try {
       const path = await props.pickDirectory()
-      if (path !== null) patch({ cwd: path })
+      if (path !== null) applyPath(path)
     } catch (_error) {
       setDirectoryError(true)
     }
@@ -182,6 +190,71 @@ export function TagSettingsSection(props: TagSettingsProps) {
   const canLaunch = paired && appMatchesSaved && permissionsReady
   const validation = validateForm(form)
   const invalidGroupScope = groupMode === 'specific' && form.groupAllowlist.length === 0
+
+  const patchProfile = (index: number, value: Partial<TagForm['agentProfiles'][number]>): void => {
+    const agentProfiles = form.agentProfiles.map((profile, offset) => (
+      offset === index ? { ...profile, ...value } : profile
+    ))
+    patch({ agentProfiles })
+  }
+
+  const removeProfile = (id: string): void => {
+    patch({
+      agentProfiles: form.agentProfiles.filter(profile => profile.id !== id),
+      defaultAgentProfileId: form.defaultAgentProfileId === id ? '' : form.defaultAgentProfileId,
+      groupScopes: form.groupScopes.map(group => (
+        group.agentProfileId === id ? { ...group, agentProfileId: '' } : group
+      )),
+    })
+  }
+
+  const addProfile = (): void => {
+    const number = nextAgentNumber(form.agentProfiles)
+    patch({
+      agentProfiles: [...form.agentProfiles, {
+        id: `agent-${String(number)}`,
+        name: `Agent ${String(number)}`,
+        instructions: '',
+        provider: '',
+        model: '',
+        cwd: '',
+        accessBundleIds: [],
+      }],
+    })
+  }
+
+  const patchGroupScope = (index: number, value: Partial<TagForm['groupScopes'][number]>): void => {
+    patch({
+      groupScopes: form.groupScopes.map((group, offset) => (
+        offset === index ? { ...group, ...value } : group
+      )),
+    })
+  }
+
+  const routeSelect = (
+    provider: string,
+    model: string,
+    inheritedLabel: string,
+    onChange: (provider: string, model: string) => void,
+  ) => {
+    const value = routeValue(provider, model)
+    const listed = value === '' || models.options.some(option => (
+      option.provider === provider && option.model === model
+    ))
+    return (
+      <select className="dst-select" value={value} disabled={!snapshot.writable || models.loading} onChange={event => {
+        if (event.target.value === '') onChange('', '')
+        else {
+          const [nextProvider, nextModel] = JSON.parse(event.target.value) as [string, string]
+          onChange(nextProvider, nextModel)
+        }
+      }}>
+        <option value="">{inheritedLabel}</option>
+        {!listed ? <option value={value}>{provider} / {model} ({t('modelCurrentCustom')})</option> : null}
+        {modelGroups.map(([name, options]) => <optgroup label={name} key={name}>{options.map(option => <option value={routeValue(option.provider, option.model)} key={`${option.provider}/${option.model}`}>{option.modelName}</option>)}</optgroup>)}
+      </select>
+    )
+  }
 
   if (snapshot.status === 'loading') return <p className="dst-hint">{t('statusLoading')}</p>
   if (snapshot.status !== 'ready') return <p className="dst-error">{t('unavailable')}</p>
@@ -303,9 +376,80 @@ export function TagSettingsSection(props: TagSettingsProps) {
         </div>
       </div>
 
+      <div className="dst-card">
+        <div className="dst-card-heading">
+          <div><h3>{t('agentsTitle')}</h3><p className="dst-hint">{t('agentsHint')}</p></div>
+          <button className="dst-button dst-button--secondary" type="button" disabled={!snapshot.writable} onClick={addProfile}>{t('addAgent')}</button>
+        </div>
+
+        <div className="dst-row">
+          <div className="dst-field"><label htmlFor="dst-default-agent">{t('defaultAgent')}</label><span className="dst-hint">{t('defaultAgentHint')}</span></div>
+          <select id="dst-default-agent" className="dst-select" value={form.defaultAgentProfileId} disabled={!snapshot.writable} onChange={event => { patch({ defaultAgentProfileId: event.target.value }) }}>
+            <option value="">{t('builtInDefaultAgent')}</option>
+            {form.agentProfiles.map(profile => <option value={profile.id} key={profile.id}>{profile.name || profile.id}</option>)}
+          </select>
+        </div>
+        <div className="dst-row">
+          <div className="dst-field"><label htmlFor="dst-default-instructions">{t('defaultInstructions')}</label><span className="dst-hint">{t('defaultInstructionsHint')}</span></div>
+          <textarea id="dst-default-instructions" className="dst-textarea" value={form.defaultInstructions} disabled={!snapshot.writable} onChange={event => { patch({ defaultInstructions: event.target.value }) }} />
+        </div>
+
+        {form.agentProfiles.length === 0 ? <p className="dst-empty">{t('agentsEmpty')}</p> : null}
+        <div className="dst-editor-list">
+          {form.agentProfiles.map((profile, index) => (
+            <details className="dst-editor" open key={`${profile.id}-${String(index)}`}>
+              <summary><span>{profile.name || profile.id || t('unnamedAgent')}</span><code>{profile.id || '—'}</code></summary>
+              <div className="dst-editor-body">
+                <div className="dst-grid-two">
+                  <div className="dst-field"><label>{t('agentName')}</label><input className="dst-input" value={profile.name} disabled={!snapshot.writable} onChange={event => { patchProfile(index, { name: event.target.value }) }} /></div>
+                  <div className="dst-field"><label>{t('agentId')}</label><input className="dst-input" value={profile.id} disabled={!snapshot.writable} onChange={event => { patchProfile(index, { id: event.target.value.trim().toLowerCase() }) }} /></div>
+                </div>
+                <div className="dst-field"><label>{t('agentInstructions')}</label><span className="dst-hint">{t('agentInstructionsHint')}</span><textarea className="dst-textarea" value={profile.instructions ?? ''} disabled={!snapshot.writable} onChange={event => { patchProfile(index, { instructions: event.target.value }) }} /></div>
+                <div className="dst-row"><div className="dst-field"><span>{t('agentModel')}</span><span className="dst-hint">{t('agentModelHint')}</span></div>{routeSelect(profile.provider ?? '', profile.model ?? '', t('modelDefault'), (provider, model) => { patchProfile(index, { provider, model }) })}</div>
+                <div className="dst-row"><div className="dst-field"><span>{t('agentWorkspace')}</span><span className="dst-hint dst-path">{profile.cwd || t('cwdDefault')}</span></div><div className="dst-inline-actions"><button className="dst-button dst-button--secondary" type="button" disabled={!snapshot.writable} onClick={() => { void chooseDirectory(path => { patchProfile(index, { cwd: path }) }) }}>{t('chooseFolder')}</button>{profile.cwd ? <button className="dst-link-button" type="button" onClick={() => { patchProfile(index, { cwd: '' }) }}>{t('useDefault')}</button> : null}</div></div>
+                <div className="dst-editor-actions"><button className="dst-link-button dst-link-button--danger" type="button" disabled={!snapshot.writable} onClick={() => { removeProfile(profile.id) }}>{t('removeAgent')}</button></div>
+              </div>
+            </details>
+          ))}
+        </div>
+      </div>
+
+      <div className="dst-card">
+        <div className="dst-card-heading">
+          <div><h3>{t('scopesTitle')}</h3><p className="dst-hint">{t('scopesHint')}</p></div>
+          <button className="dst-button dst-button--secondary" type="button" disabled={!snapshot.writable} onClick={() => { patch({ groupScopes: [...form.groupScopes, { chatId: '', name: '', enabled: true, agentProfileId: '', instructions: '', provider: '', model: '', cwd: '', accessBundleIds: [], responseMode: 'inherit' }] }) }}>{t('addScope')}</button>
+        </div>
+        {form.groupScopes.length === 0 ? <p className="dst-empty">{t('scopesEmpty')}</p> : null}
+        <div className="dst-editor-list">
+          {form.groupScopes.map((group, index) => {
+            const effective = group.chatId.trim() === '' ? undefined : resolveAgentBehavior(form, { chatType: 'group', chatId: group.chatId.trim() })
+            return (
+              <details className="dst-editor" open key={`${group.chatId}-${String(index)}`}>
+                <summary><span>{group.name || group.chatId || t('newScope')}</span><span className={`dst-mini-status${group.enabled === false ? ' is-off' : ''}`}>{group.enabled === false ? t('scopeDisabled') : t('scopeEnabled')}</span></summary>
+                <div className="dst-editor-body">
+                  <div className="dst-grid-two">
+                    <div className="dst-field"><label>{t('scopeName')}</label><input className="dst-input" value={group.name ?? ''} disabled={!snapshot.writable} placeholder={t('scopeNamePlaceholder')} onChange={event => { patchGroupScope(index, { name: event.target.value }) }} /></div>
+                    <div className="dst-field"><label>{t('scopeChatId')}</label><input className="dst-input" value={group.chatId} disabled={!snapshot.writable} placeholder="oc_…" onChange={event => { patchGroupScope(index, { chatId: event.target.value.trim() }) }} /></div>
+                  </div>
+                  <label className="dst-toggle"><input type="checkbox" checked={group.enabled ?? true} disabled={!snapshot.writable} onChange={event => { patchGroupScope(index, { enabled: event.target.checked }) }} /><span>{t('scopeRuns')}</span></label>
+                  <div className="dst-row"><div className="dst-field"><span>{t('scopeAgent')}</span><span className="dst-hint">{t('scopeAgentHint')}</span></div><select className="dst-select" value={group.agentProfileId ?? ''} disabled={!snapshot.writable} onChange={event => { patchGroupScope(index, { agentProfileId: event.target.value }) }}><option value="">{t('inheritDefaultAgent')}</option>{form.agentProfiles.map(profile => <option value={profile.id} key={profile.id}>{profile.name || profile.id}</option>)}</select></div>
+                  <div className="dst-row"><div className="dst-field"><span>{t('scopeResponse')}</span><span className="dst-hint">{t('scopeResponseHint')}</span></div><select className="dst-select" value={group.responseMode ?? 'inherit'} disabled={!snapshot.writable} onChange={event => { const value = event.target.value; patchGroupScope(index, { responseMode: value === 'mention' || value === 'automatic' ? value : 'inherit' }) }}><option value="inherit">{t('scopeResponseInherit')}</option><option value="mention">{t('scopeResponseMention')}</option><option value="automatic">{t('scopeResponseAutomatic')}</option></select></div>
+                  <div className="dst-field"><label>{t('scopeInstructions')}</label><span className="dst-hint">{t('scopeInstructionsHint')}</span><textarea className="dst-textarea" value={group.instructions ?? ''} disabled={!snapshot.writable} onChange={event => { patchGroupScope(index, { instructions: event.target.value }) }} /></div>
+                  <div className="dst-row"><div className="dst-field"><span>{t('scopeModel')}</span><span className="dst-hint">{t('scopeModelHint')}</span></div>{routeSelect(group.provider ?? '', group.model ?? '', t('inheritAgent'), (provider, model) => { patchGroupScope(index, { provider, model }) })}</div>
+                  <div className="dst-row"><div className="dst-field"><span>{t('scopeWorkspace')}</span><span className="dst-hint dst-path">{group.cwd || t('inheritAgent')}</span></div><div className="dst-inline-actions"><button className="dst-button dst-button--secondary" type="button" disabled={!snapshot.writable} onClick={() => { void chooseDirectory(path => { patchGroupScope(index, { cwd: path }) }) }}>{t('chooseFolder')}</button>{group.cwd ? <button className="dst-link-button" type="button" onClick={() => { patchGroupScope(index, { cwd: '' }) }}>{t('useDefault')}</button> : null}</div></div>
+                  {effective === undefined ? <p className="dst-callout">{t('effectiveNeedsChatId')}</p> : <div className="dst-effective"><strong>{t('effectiveTitle')}</strong><dl><div><dt>{t('effectiveAgent')}</dt><dd>{effective.profileName}</dd></div><div><dt>{t('effectiveModel')}</dt><dd>{effective.provider && effective.model ? `${effective.provider} / ${effective.model}` : t('modelDefault')}</dd></div><div><dt>{t('effectiveWorkspace')}</dt><dd>{effective.cwd || t('cwdDefault')}</dd></div><div><dt>{t('effectiveResponse')}</dt><dd>{effective.requireMention ? t('scopeResponseMention') : t('scopeResponseAutomatic')}</dd></div><div><dt>{t('effectiveConnections')}</dt><dd>{effective.accessBundleIds.length === 0 ? t('noConnections') : effective.accessBundleIds.join(', ')}</dd></div></dl></div>}
+                  <div className="dst-editor-actions"><button className="dst-link-button dst-link-button--danger" type="button" disabled={!snapshot.writable} onClick={() => { patch({ groupScopes: form.groupScopes.filter((_, offset) => offset !== index) }) }}>{t('removeScope')}</button></div>
+                </div>
+              </details>
+            )
+          })}
+        </div>
+      </div>
+
       {validation === 'appId' ? <p className="dst-error">{t('invalidAppId')}</p> : null}
       {validation === 'dmAllowlist' ? <p className="dst-error">{t('invalidAllowlist')}</p> : null}
       {validation === 'modelRoute' ? <p className="dst-error">{t('invalidModelRoute')}</p> : null}
+      {validation === 'agentScopes' ? <p className="dst-error">{t('invalidAgentScopes')}</p> : null}
       {invalidGroupScope ? <p className="dst-error">{t('invalidGroupScope')}</p> : null}
       {result === 'credential' ? <p className="dst-error">{t('credentialFailed')}</p> : null}
       {result === 'settings' && validation === undefined ? <p className="dst-error">{t('settingsFailed')}</p> : null}
