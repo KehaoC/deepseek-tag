@@ -28,13 +28,12 @@ export const name = 'deepseek-tag'
 export const inject = ['agents']
 
 /** Activate the composition layer and optional live Web UI settings layer. */
-export async function apply(ctx: Context, config: ConfigShape = {}): Promise<void> {
+export function apply(ctx: Context, config: ConfigShape = {}): void {
   let current: () => ConfigShape = () => config
   const supervisor = new BridgeSupervisor(ctx)
   if (!resolveConfig(config).enabled) {
     ctx.logger.info('[deepseek-tag] disabled; configure the plugin before connecting')
   }
-  await supervisor.configure(config)
   ctx.effect(() => () => supervisor.stop(), 'deepseek-tag.serve')
 
   const reconfigure = (): void => {
@@ -48,4 +47,5 @@ export async function apply(ctx: Context, config: ConfigShape = {}): Promise<voi
   ctx.on('credentials/updated', (ref) => {
     if (ref === resolveConfig(current()).appSecretEnv) reconfigure()
   })
+  reconfigure()
 }
